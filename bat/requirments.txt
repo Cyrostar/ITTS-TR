@@ -1,0 +1,78 @@
+# ======================================================
+# Core Runtime & Math
+# ======================================================
+numpy==1.26.2
+pandas==2.3.2
+numba==0.58.1
+munch==4.0.0
+omegaconf>=2.3.0
+json5==0.10.0
+einops>=0.8.1
+tqdm>=4.67.1
+triton-windows==3.4.post21
+
+# ======================================================
+# Deep Learning & Transformers
+# ======================================================
+keras==2.9.0
+accelerate==1.8.1
+transformers==4.52.1
+tokenizers==0.21.0
+sentencepiece>=0.2.1
+safetensors==0.5.2
+modelscope==1.27.0
+hf-xet
+
+# ======================================================
+# Datasets & Data Loading
+# ======================================================
+datasets>=2.20.0
+pypdf
+
+# ======================================================
+# PyTorch (CUDA 12.8 – RTX 5090 / Blackwell)
+# ======================================================
+torch==2.8.* --extra-index-url https://download.pytorch.org/whl/cu128
+torchaudio==2.8.* --extra-index-url https://download.pytorch.org/whl/cu128
+torchvision --extra-index-url https://download.pytorch.org/whl/cu128
+
+# ======================================================
+# Audio & Speech Processing
+# ======================================================
+librosa==0.10.2.post1
+descript-audiotools==0.7.2
+ffmpeg-python==0.2.0
+pydub>=0.25.1
+pyannote.audio>=3.4.0
+openai-whisper>=20250625
+demucs
+phonemizer
+g2p-en==2.1.0
+cn2an==0.5.22
+
+# ======================================================
+# NLP / Text Processing
+# ======================================================
+jieba==0.42.1
+textstat>=0.7.10
+wetext>=0.0.9
+
+# ======================================================
+# Vision & Media
+# ======================================================
+opencv-python==4.9.0.80
+matplotlib==3.8.2
+
+# ======================================================
+# UI / Monitoring
+# ======================================================
+gradio>=6.5.1
+tensorboard==2.9.1
+wmi
+psutil
+nvidia-ml-py
+
+# ======================================================
+# Build & Low-level Utilities
+# ======================================================
+cython==3.0.7

@@ -1,0 +1,243 @@
+import os
+import json
+import shutil
+
+path_base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+path_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+wui_cnfg = os.path.join(path_base, "wui.json")
+wui_ckpt = os.path.join(path_base, "ckpt")
+wui_locs = os.path.join(path_base, "locales")
+wui_outs = os.path.join(path_base, "outputs")
+wui_lang = "en"
+
+os.makedirs(wui_ckpt, exist_ok=True)
+os.makedirs(wui_outs, exist_ok=True)
+
+def load_wui():
+    """Reads the global configuration from wui.json."""
+    if os.path.exists(wui_cnfg):
+        try:
+            with open(wui_cnfg, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+    
+def save_wui(last_project, language):
+    """Saves global states to wui.json."""
+    try:
+        with open(wui_cnfg, "w") as f:
+            json.dump({
+                "wui_last": last_project,
+                "wui_lang": language
+            }, f, indent=4)
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+wui_data = load_wui()
+wui_lang = wui_data.get("wui_lang", "en")
+wui_last = wui_data.get("wui_last", "myproject")
+
+prj_path = os.path.join(path_base, "projects")
+pcf_path = os.path.join(prj_path, "config.json")
+
+os.makedirs(prj_path, exist_ok=True)
+
+project_name = ""
+project_path = ""
+
+def list_projects():
+    if not os.path.exists(prj_path):
+        return []
+    all_items = os.listdir(prj_path)
+    project_names = [
+        item for item in all_items 
+        if os.path.isdir(os.path.join(prj_path, item))
+    ]
+    return sorted(project_names)
+    
+def delete_project(name):
+    """Safely deletes a project directory by name."""
+    target = os.path.join(prj_path, name)
+    if os.path.exists(target) and os.path.isdir(target):
+        shutil.rmtree(target)
+        return True
+    return False
+    
+available = list_projects()
+
+if not available:
+    os.makedirs(os.path.join(prj_path, "myproject"), exist_ok=True)
+    project_name = "myproject"
+else:
+    if wui_last in available:
+        project_name = wui_last
+    else:
+        project_name = available[0]
+        
+project_path = os.path.join(prj_path, project_name)
+       
+save_wui(project_name, wui_lang)
+
+def configs_directory():
+    d = os.path.join(project_path, "configs")
+    os.makedirs(d, exist_ok=True)
+    return d
+    
+def models_directory():
+    d = os.path.join(project_path, "models")
+    os.makedirs(d, exist_ok=True)
+    return d
+    
+def corpus_directory():
+    d = os.path.join(project_path, "corpus")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def tokenizer_directory():
+    d = os.path.join(project_path, "tokenizers")
+    os.makedirs(d, exist_ok=True)
+    return d
+        
+def extractions_directory():
+    d = os.path.join(project_path, "extractions")
+    os.makedirs(d, exist_ok=True)
+    return d
+    
+def load_guide_text(tab_name):
+    
+    lang = ui_language
+    
+    guide_path = os.path.join(path_base, "guides", tab_name, f"{lang}.md")
+    
+    if os.path.exists(guide_path):
+        try:
+            with open(guide_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            return f"❌ Error loading guide: {e}"
+            
+    fallback_path = os.path.join(path_base, "guides", "corpus", "en.md")
+    if os.path.exists(fallback_path):
+        try:
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            pass
+            
+    return "⚠️ Documentation not found."
+
+        
+def get_available_languages():
+    """Scans the locales for available language JSON files."""
+    if not os.path.exists(wui_locs):
+        return ["en", "tr"] # Safe fallback
+    
+    langs = []
+    for f in os.listdir(wui_locs):
+        if f.endswith(".json"):
+            # Extracts 'en' from 'en_US.json' or 'tr' from 'tr_TR.json'
+            lang_code = f.split("_")[0] 
+            if lang_code not in langs:
+                langs.append(lang_code)
+                
+    return sorted(langs) if langs else ["en", "tr"]
+        
+class Translator:
+    def __init__(self):
+        config = load_wui()
+        # Default to "en" if not set
+        self.language = config.get("wui_lang", "en")
+        self.language_map = self._load_language_file(self.language)
+
+    def _load_language_file(self, lang):
+        if not os.path.exists(wui_locs):
+            return {}
+            
+        for f in os.listdir(wui_locs):
+            if f.startswith(f"{lang}_") and f.endswith(".json"):
+                lang_path = os.path.join(wui_locs, f)
+                try:
+                    with open(lang_path, "r", encoding="utf-8") as file:
+                        return json.load(file)
+                except Exception as e:
+                    print(f"Error loading language file {lang_path}: {e}")
+                    
+        return {} # Returns empty dict if file is not found
+
+    def __call__(self, key):
+        # Return translated string, fallback to key if missing
+        return self.language_map.get(key, key)
+        
+_ = Translator() 
+ui_language = _.language
+
+my_css = """
+/* --- Light Mode (Default) --- */
+button[role="tab"] {
+    font-size: 20px !important;
+    font-weight: bold !important;
+    color: #333 !important; 
+}
+
+/* --- Dark Mode --- */
+.dark button[role="tab"] {
+    color: #efefef !important; /* Lighter text for dark background */
+}
+
+/* --- Active Tab Style (Light Mode) --- */
+button[role="tab"][aria-selected="true"] {
+    color: #e44d26 !important; 
+    border-color: #e44d26 !important;
+}
+
+/* --- Active Tab Style (Dark Mode - Optional tweak for contrast) --- */
+.dark button[role="tab"][aria-selected="true"] {
+    color: #ff5722 !important; 
+    border-color: #ff5722 !important;
+}
+
+/* Increase Accordion Title Font Size */
+.wui-accordion > button > span {
+    font-size: 18px !important; 
+    font-weight: bold !important;
+}
+
+.wui-markdown {
+    padding-top: 5px !important;    /* Adjust size as needed */
+    padding-bottom: 5px !important; /* Adjust size as needed */
+}
+"""
+
+def language_list():
+
+    priority = ["tr", "en", "es"]
+    
+    # ISO 639-1 codes for European languages
+    european = [
+        "sq", "hy", "be", "bs", "bg", "hr", "cs", "da", "nl", "et", 
+        "fi", "fr", "ka", "de", "el", "hu", "is", "ga", "it", "lv", 
+        "lt", "mk", "mt", "mo", "me", "no", "pl", "pt", "ro", "ru", 
+        "sr", "sk", "sl", "es", "sv", "uk"
+    ]
+    
+    # ISO 639-1 codes for common Asian languages
+    asian = [
+        "zh", "hi", "ja", "ko", "vi", "th", "bn", "pa", "id", "ms", 
+        "tl", "ta", "te", "mr", "gu", "kn", "ml", "ur", "fa", "ar", 
+        "he", "ne", "si", "km", "lo", "my", "az", "uz", "kk", "tg", "tk"
+    ]
+    
+    # ISO 639-1 codes for common Latin America languages
+    americas = ["es", "pt", "fr", "nl", "ht"]
+    
+    # Add your language here or to priority list
+    other = []
+    
+    # Sort the rest alphabetically for a better UI experience
+    langs = list(set(european + asian + other))
+    langs.sort()
+    
+    # Combine lists
+    return priority + langs
