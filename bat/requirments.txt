@@ -76,3 +76,16 @@ nvidia-ml-py
 # Build & Low-level Utilities
 # ======================================================
 cython==3.0.7
+
+# ======================================================
+# RVC Inference & Training Extensions
+# ======================================================
+faiss-cpu
+pyworld
+torchcrepe
+praat-parselmouth
+resampy
+beautifulsoup4
+wget
+torchfcpe
+noisereduce
