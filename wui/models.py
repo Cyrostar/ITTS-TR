@@ -62,6 +62,23 @@ def download_repo(repo_id, local_dir_name):
         
     except Exception as e:
         return f"❌ Download Failed:\n{str(e)}", list_files(local_dir_name)
+        
+def download_tr_weights():
+    repo_id = "ruygar/itts_tr_lex"
+    target_dir = core.wui_ckpt
+    
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        snapshot_download(
+            repo_id=repo_id, 
+            allow_patterns=["tr_bpe.model", "tr_config.yaml", "tr_gpt.pth"], # Only pulls these 3
+            local_dir=target_dir,
+            local_dir_use_symlinks=False
+        )
+        
+        return f"✅ Successfully downloaded Turkish weights directly to:\n{target_dir}", list_files("wui/ckpt")
+    except Exception as e:
+        return f"❌ Download Failed:\n{str(e)}", list_files("wui/ckpt")
 
 def download_to_global_cache(repo_id):
 
@@ -170,6 +187,17 @@ def create_demo():
                 pb2_btn = gr.Button(_("MODELS_BTN_DOWNLOAD_PB2"), variant="stop")
             
             pb2_status = gr.Textbox(label=_("MODELS_DEPENDENCY_STATUS"), lines=1)
+            
+        # --- SECTION 5: Download Turkish Weights ---
+        gr.HTML("<div style='height:20px'></div>")
+        with gr.Group():
+            gr.Markdown(_("MODELS_SECTION_TR_WEIGHTS"))
+            gr.Markdown(_("MODELS_DESC_TR_WEIGHTS"))
+           
+            tr_status_output = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=2, interactive=False)
+            
+            with gr.Row():
+                tr_dl_btn = gr.Button(_("MODELS_BTN_DOWNLOAD_TR"), variant="primary")
 
         # --- Event Handlers ---
         
@@ -204,10 +232,18 @@ def create_demo():
             inputs=[pb2_url, pb2_name],
             outputs=[pb2_status, files_display] # Updates file list to show if it appeared
         )
+        
+        # Turkish Weights Download Handler
+        tr_dl_btn.click(
+            fn=download_tr_weights,
+            inputs=[],
+            outputs=[tr_status_output, files_display] # Updates the log and UI list
+        )
 
         # =============
         # DOCUMENTATION
         # =============
+        gr.HTML("<div style='height:20px'></div>")
         with gr.Group():
             gr.Markdown(_("COMMON_HEADER_DOCS"), elem_classes="wui-markdown") 
         

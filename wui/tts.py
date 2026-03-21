@@ -62,7 +62,8 @@ class StandaloneTTS(IndexTTS2):
             self.bpe_path = os.path.join(self.ckpt_dir, f"{self.prefix}bpe.model")
             
         # 2. Map target files in wui_ckpt
-        self.cfg_path = os.path.join(self.ckpt_dir, f"{self.prefix}config.yaml")
+        correct_cfg_path = os.path.join(self.ckpt_dir, f"{self.prefix}config.yaml")
+        self.cfg_path = correct_cfg_path
         self.gpt_path = os.path.join(self.ckpt_dir, gpt_file_name)
         self.bpe_path = os.path.join(self.ckpt_dir, f"{self.prefix}bpe.model")
         
@@ -76,6 +77,8 @@ class StandaloneTTS(IndexTTS2):
                          use_cuda_kernel=use_cuda_kernel, use_torch_compile=use_torch_compile,
                          tok_type=self.tok_type, loaded_project_name="itts_base_model" if self.tok_type == "indextts" else None)
         
+        # 5. FORCE RESTORE the correct custom config path! (Overriding the parent's fallback)
+        self.cfg_path = correct_cfg_path
         self.cfg = OmegaConf.load(self.cfg_path)
         self.stop_mel_token = self.cfg.gpt.stop_mel_token
 
@@ -172,9 +175,21 @@ class StandaloneTTS(IndexTTS2):
             self.normalizer = TextNormalizer()
             self.tokenizer = TextTokenizer(self.bpe_path, self.normalizer)  # Aligned with inference.py (Positional)
         else:
-            yield "   ℹ️ Auto-Selected: ITTS-TR BloomTokenizer (MultilingualNormalizer | wordify=True)"
-            self.normalizer = MultilingualNormalizer(lang="tr", wordify=True)
+            case_fmt = "lowercase"
+            if "tokenizer" in self.cfg:
+                case_fmt = getattr(self.cfg.tokenizer, "case_format", "lowercase")               
+            
+            # --- DEBUG PRINTS ---
+            print(f"\n>>> DEBUG: Raw case_format read from config is: '{case_fmt}'\n")
+            yield f"   🐞 DEBUG: Raw case_format from config: '{case_fmt}'"
+            # --------------------
+            
+            is_upper = (case_fmt == "uppercase")            
+            yield f"   ℹ️ Auto-Selected: ITTS-TR BloomTokenizer (MultilingualNormalizer | wordify=True | upper={is_upper})"            
+            
+            self.normalizer = MultilingualNormalizer(lang="tr", wordify=True, upper=is_upper)
             self.tokenizer = GenericSpiceTokenizer(vocab_file=self.bpe_path, normalizer=self.normalizer)
+            
         yield "   ✅ Tokenizer Ready"
 
         # 7. Matrices
