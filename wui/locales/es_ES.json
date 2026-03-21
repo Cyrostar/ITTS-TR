@@ -89,8 +89,9 @@
 		"MODELS_LABEL_TARGET_FILENAME": "Nombre del Archivo de Destino",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ Descargar Corrección PB2",
 		"MODELS_DEPENDENCY_STATUS": "Estado",
-		"MODELS_HEADER_DOCS": "## ❓ DOCUMENTACIÓN",
-		"MODELS_ACC_GUIDE": "🧭 GUÍA",
+		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Descargar Pesos Turcos",
+		"MODELS_DESC_TR_WEIGHTS": "Descarga `tr_bpe.model`, `tr_config.yaml` y `tr_gpt.pth` desde `ruygar/itts_tr_lex` directamente en la carpeta `wui/ckpt`.",
+		"MODELS_BTN_DOWNLOAD_TR": "Descargar Pesos Turcos",
 		
 	"section_corpus": "--- Pestaña de Corpus (corpus.py) ---",
 	
@@ -167,8 +168,6 @@
 		"CORPUS_PLACEHOLDER_AB_AUTHOR": "Nombre del Autor",
 		"CORPUS_PLACEHOLDER_AB_TITLE": "Título del Libro",
 		"CORPUS_BTN_GEN_AB": "Generar Nombre de Audiolibro",
-		"CORPUS_HEADER_DOCS": "## ❓ DOCUMENTACIÓN",
-		"CORPUS_ACC_GUIDE": "🧭 GUÍA",
 		
 	"section_config": "--- Pestaña de Config (config.py) ---",
 	
@@ -221,8 +220,6 @@
 		"CONFIG_LABEL_LOG": "Registro de Consola",
 		"CONFIG_MSG_SUCCESS": "✅ Configuración generada y guardada con éxito en:",
 		"CONFIG_MSG_ERROR": "❌ Error al guardar la configuración:",
-		"CONFIG_HEADER_DOCS": "## ❓ DOCUMENTACIÓN",
-		"CONFIG_ACC_GUIDE": "🧭 GUÍA",
 		
 	"section_dataset": "--- Pestaña de Dataset (dataset.py) ---",
 	
@@ -243,8 +240,6 @@
 		"DATASET_LABEL_UPLOAD": "Subir Audio",
 		"DATASET_LABEL_MAX_DUR": "Duración Máxima del Clip (seg)",
 		"DATASET_BTN_SLICE": "✂️ Iniciar Corte",
-		"DATASET_HEADER_DOCS": "## ❓ DOCUMENTACIÓN",
-		"DATASET_ACC_GUIDE": "🧭 GUÍA",
 		
 	"section_tokenizer": "--- Pestaña de Tokenizador (tokenizer.py) ---",
 	
@@ -344,9 +339,6 @@
 		"TOKENIZER_LABEL_OUT_SOURCE": "1. Vocabulario de Origen Procesado",
 		"TOKENIZER_LABEL_OUT_TARGET": "2. Vocabulario de Destino Procesado",
 		"TOKENIZER_LABEL_OUT_FINAL": "3. Vocabulario Final Fusionado",
-
-		"TOKENIZER_HEADER_DOCS": "## ❓ DOCUMENTACIÓN",
-		"TOKENIZER_ACC_GUIDE": "🧭 GUÍA",
 		
 	"section_preprocessor": "--- Pestaña de Preprocesador (preprocessor.py) ---",
 	

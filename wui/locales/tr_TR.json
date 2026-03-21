@@ -89,8 +89,9 @@
 		"MODELS_LABEL_TARGET_FILENAME": "Hedef Dosya Adı",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ PB2 Düzeltmesini İndir",
 		"MODELS_DEPENDENCY_STATUS": "Durum",
-		"MODELS_HEADER_DOCS": "## ❓ BELGELENDİRME",
-		"MODELS_ACC_GUIDE": "🧭 REHBER",
+		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Türkçe Ağırlıkları İndir",
+		"MODELS_DESC_TR_WEIGHTS": "`ruygar/itts_tr_lex` deposundan `tr_bpe.model`, `tr_config.yaml` ve `tr_gpt.pth` dosyalarını doğrudan `wui/ckpt` klasörüne çeker.",
+		"MODELS_BTN_DOWNLOAD_TR": "Türkçe Ağırlıkları İndir",
 		
 	"section_corpus": "--- Derlem Sekmesi (corpus.py) ---",
 	
@@ -167,8 +168,6 @@
 		"CORPUS_PLACEHOLDER_AB_AUTHOR": "Yazar Adı",
 		"CORPUS_PLACEHOLDER_AB_TITLE": "Kitap Başlığı",
 		"CORPUS_BTN_GEN_AB": "Sesli Kitap Dosya Adı Oluştur",
-		"CORPUS_HEADER_DOCS": "## ❓ BELGELENDİRME",
-		"CORPUS_ACC_GUIDE": "🧭 REHBER",
 		
 	"section_config": "--- Ayar Sekmesi (config.py) ---",
 	
@@ -221,8 +220,6 @@
 		"CONFIG_LABEL_LOG": "Konsol Çıktısı",
 		"CONFIG_MSG_SUCCESS": "✅ Yapılandırma başarıyla oluşturuldu ve kaydedildi:",
 		"CONFIG_MSG_ERROR": "❌ Yapılandırma kaydedilirken hata oluştu:",
-		"CONFIG_HEADER_DOCS": "## ❓ BELGELENDİRME",
-		"CONFIG_ACC_GUIDE": "🧭 REHBER",
 		
 	"section_dataset": "--- Veri Seti Sekmesi (dataset.py) ---",
 	
@@ -243,8 +240,6 @@
 		"DATASET_LABEL_UPLOAD": "Ses Yükle",
 		"DATASET_LABEL_MAX_DUR": "Maksimum Klip Süresi (sn)",
 		"DATASET_BTN_SLICE": "✂️ Dilimlemeyi Başlat",
-		"DATASET_HEADER_DOCS": "## ❓ DOKÜMANTASYON",
-		"DATASET_ACC_GUIDE": "🧭 REHBER",
 		
 	"section_tokenizer": "--- Simgeleştirici Sekmesi (tokenizer.py) ---",
 	
@@ -344,9 +339,6 @@
 		"TOKENIZER_LABEL_OUT_SOURCE": "1. İşlenmiş Kaynak Sözlük",
 		"TOKENIZER_LABEL_OUT_TARGET": "2. İşlenmiş Hedef Sözlük",
 		"TOKENIZER_LABEL_OUT_FINAL": "3. Nihai Birleştirilmiş Sözlük",
-
-		"TOKENIZER_HEADER_DOCS": "## ❓ DOKÜMANTASYON",
-		"TOKENIZER_ACC_GUIDE": "🧭 REHBER",
 		
 	"section_preprocessor": "--- Ön İşleyici Sekmesi (preprocessor.py) ---",
 	

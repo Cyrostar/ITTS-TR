@@ -10,6 +10,8 @@
 		"PREPROCESSOR": "PREPROCESSOR",
 		"TRAINER": "TRAINER",
 		"INFERENCE": "INFERENCE",
+		"TTS": "TTS",
+		"RVC": "RVC",
 		
 	"section_project": "--- Projects (app.py) ---",
 	
@@ -89,8 +91,9 @@
 		"MODELS_LABEL_TARGET_FILENAME": "Target Filename",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ Download PB2 Fix",
 		"MODELS_DEPENDENCY_STATUS": "Status",
-		"MODELS_HEADER_DOCS": "## ❓ DOCUMENTATION",
-		"MODELS_ACC_GUIDE": "🧭 GUIDE",	
+		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Download Turkish Weights",
+		"MODELS_DESC_TR_WEIGHTS": "Pulls `tr_bpe.model`, `tr_config.yaml`, and `tr_gpt.pth` from `ruygar/itts_tr_lex` directly into the `wui/ckpt` folder.",
+		"MODELS_BTN_DOWNLOAD_TR": "Download Turkish Weights",
 		
 	"section_corpus": "--- Corpus Tab (corpus.py) ---",
 	
@@ -167,8 +170,6 @@
 		"CORPUS_PLACEHOLDER_AB_AUTHOR": "Author Name",
 		"CORPUS_PLACEHOLDER_AB_TITLE": "Book Title",
 		"CORPUS_BTN_GEN_AB": "Generate Audiobook Filename",
-		"CORPUS_HEADER_DOCS": "## ❓ DOCUMENTATION",
-		"CORPUS_ACC_GUIDE": "🧭 GUIDE",
 		
 	"section_config": "--- Config Tab (config.py) ---",
 	
@@ -221,8 +222,6 @@
 		"CONFIG_LABEL_LOG": "Console Log",
 		"CONFIG_MSG_SUCCESS": "✅ Config successfully generated and saved to:",
 		"CONFIG_MSG_ERROR": "❌ Error saving config:",
-		"CONFIG_HEADER_DOCS": "## ❓ DOCUMENTATION",
-		"CONFIG_ACC_GUIDE": "🧭 GUIDE",
 		
 	"section_dataset": "--- Dataset Tab (dataset.py) ---",
 	
@@ -243,8 +242,6 @@
 		"DATASET_LABEL_UPLOAD": "Upload Audio",
 		"DATASET_LABEL_MAX_DUR": "Max Clip Duration (sec)",
 		"DATASET_BTN_SLICE": "✂️ Start Slicing",
-		"DATASET_HEADER_DOCS": "## ❓ DOCUMENTATION",
-		"DATASET_ACC_GUIDE": "🧭 GUIDE",
 		
 	"section_tokenizer": "--- Tokenizer Tab (tokenizer.py) ---",
 	
@@ -344,9 +341,6 @@
 		"TOKENIZER_LABEL_OUT_SOURCE": "1. Processed Source Vocab",
 		"TOKENIZER_LABEL_OUT_TARGET": "2. Processed Target Vocab",
 		"TOKENIZER_LABEL_OUT_FINAL": "3. Final Merged Vocab",
-
-		"TOKENIZER_HEADER_DOCS": "## ❓ DOCUMENTATION",
-		"TOKENIZER_ACC_GUIDE": "🧭 GUIDE",
 		
 	"section_preprocessor": "--- Preprocessor Tab (preprocessor.py) ---",
 	
@@ -492,5 +486,5 @@
 		"TTS_LABEL_SPEAKER_REF": "Speaker Reference Audio",
 		"TTS_ACC_ADVANCED": "⚙️ Advanced Parameters",
 		"TTS_CHK_CUDA": "Enable BigVGAN CUDA Kernel",
-		"TTS_CHK_COMPILE": "Enable Torch Compile (Faster gen, slow startup)"
+		"TTS_CHK_COMPILE": "Enable Torch Compile (Faster gen, slow startup)"		
 }
