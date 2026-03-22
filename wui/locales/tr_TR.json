@@ -10,6 +10,8 @@
 		"PREPROCESSOR": "ÖN İŞLEMCİ",
 		"TRAINER": "EĞİTİM",
 		"INFERENCE": "ÇIKARIM",
+		"TTS": "TTS",
+		"RVC": "RVC",
 		
 	"section_project": "--- Projeler (app.py) ---",
 	
@@ -106,7 +108,8 @@
 		"CORPUS_CHK_UNIQUE": "Benzersiz Kelimeler",
 		"CORPUS_BTN_PROCESS": "İşle ve Ekle",
 		"CORPUS_LABEL_LOGS": "Günlükler (Logs)",
-		"CORPUS_ACC_REPO": "🗂 METİN DEPOLARI",
+		"CORPUS_ACC_REPO": "📚 METİN DEPOLARI",
+		"CORPUS_DESC_REPO": "Yüklenen pdf ve metin belgeleri.",
 		"CORPUS_HEADER_PDF": "### 📂 PDF Deposu",
 		"CORPUS_LABEL_PDF": "PDF Dosyaları",
 		"CORPUS_HEADER_TXT": "### 📂 Metin Deposu",
@@ -484,5 +487,39 @@
 		"TTS_LABEL_SPEAKER_REF": "Konuşmacı Referans Sesi",
 		"TTS_ACC_ADVANCED": "⚙️ Gelişmiş Parametreler",
 		"TTS_CHK_CUDA": "BigVGAN CUDA Çekirdeğini Etkinleştir",
-		"TTS_CHK_COMPILE": "Torch Compile'ı Etkinleştir (Daha hızlı üretim, yavaş başlangıç)"
+		"TTS_CHK_COMPILE": "Torch Compile'ı Etkinleştir (Daha hızlı üretim, yavaş başlangıç)",
+		
+	"section_rvc": "--- RVC Inference Tab (rvs.py) ---",
+	
+		"RVC_HEADER": "## 🎙️ RVC Çıkarım Motoru",
+		"RVC_DESC": "Retrieval-based Voice Conversion (RVC) kullanarak sesleri dönüştürün.",
+		
+		"RVC_HEADER_IO": "📁 Girdi / Çıktı Yapılandırması",
+		"RVC_LABEL_INPUT": "Girdi Ses Yolu",
+		"RVC_LABEL_OUTPUT": "Çıktı Ses Yolu",
+		"RVC_LABEL_PTH": "Ses Modeli Yolu (.pth)",
+		"RVC_LABEL_INDEX": "Özellik İndeks Yolu (.index)",
+		
+		"RVC_HEADER_CORE": "⚙️ Temel Akustik Ayarlar",
+		"RVC_LABEL_F0": "F0 Çıkarım Yöntemi",
+		"RVC_LABEL_EMBEDDER": "Gömme (Embedder) Modeli",
+		"RVC_LABEL_EXPORT": "Dışa Aktarma Formatı",
+		"RVC_LABEL_PITCH": "Perde Kaydırma (Yarım Tonlar)",
+		"RVC_LABEL_INDEX_RATE": "İndeks Oranı (Özellik Alma)",
+		"RVC_LABEL_VOL_ENV": "Ses Zarfı (Volume Envelope)",
+		"RVC_LABEL_PROTECT": "Sessiz Ünsüzleri Koru",
+		
+		"RVC_ACC_ADVANCED": "🛠️ Gelişmiş Ses İşleme",
+		"RVC_CHK_SPLIT": "Çıkarım Öncesi Sesi Böl (Uzun dosyalar için)",
+		"RVC_CHK_CLEAN": "Sesi Temizle (Gürültü Azaltma)",
+		"RVC_LABEL_CLEAN_STR": "Temizleme Gücü",
+		"RVC_CHK_AUTOTUNE": "F0 Autotune Uygula",
+		"RVC_LABEL_AUTOTUNE_STR": "Autotune Gücü",
+		
+		"RVC_BTN_INFER": "🚀 Ses Dönüştürmeyi Başlat",
+		"RVC_LABEL_RESULT": "Dönüştürülmüş Ses Çıktısı",
+		
+		"RVC_ERR_MISSING_PATHS": "Hata: Girdi, Çıktı, PTH ve İndeks yolları kesinlikle gereklidir.",
+		"RVC_MSG_SUCCESS": "Başarılı :",
+		"RVC_MSG_ERROR": "Hata :"
 }

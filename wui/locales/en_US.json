@@ -108,7 +108,8 @@
 		"CORPUS_CHK_UNIQUE": "Unique Words",
 		"CORPUS_BTN_PROCESS": "Process & Add",
 		"CORPUS_LABEL_LOGS": "Logs",
-		"CORPUS_ACC_REPO": "🗂 REPOSITORIES",
+		"CORPUS_ACC_REPO": "📚 CORPUS REPOSITORIES",
+		"CORPUS_DESC_REPO": "Uploaded pdf and text documents.",
 		"CORPUS_HEADER_PDF": "### 📂 PDF Repository",
 		"CORPUS_LABEL_PDF": "PDF Files",
 		"CORPUS_HEADER_TXT": "### 📂 Text Repository",
@@ -486,5 +487,39 @@
 		"TTS_LABEL_SPEAKER_REF": "Speaker Reference Audio",
 		"TTS_ACC_ADVANCED": "⚙️ Advanced Parameters",
 		"TTS_CHK_CUDA": "Enable BigVGAN CUDA Kernel",
-		"TTS_CHK_COMPILE": "Enable Torch Compile (Faster gen, slow startup)"		
+		"TTS_CHK_COMPILE": "Enable Torch Compile (Faster gen, slow startup)",
+		
+	"section_rvc": "--- RVC Inference Tab (rvs.py) ---",
+	
+		"RVC_HEADER": "## 🎙️ RVC Inference Engine",
+		"RVC_DESC": "Convert audio voices using Retrieval-based Voice Conversion (RVC).",
+		
+		"RVC_HEADER_IO": "📁 Input / Output Configuration",
+		"RVC_LABEL_INPUT": "Input Audio Path",
+		"RVC_LABEL_OUTPUT": "Output Audio Path",
+		"RVC_LABEL_PTH": "Voice Model Path (.pth)",
+		"RVC_LABEL_INDEX": "Feature Index Path (.index)",
+		
+		"RVC_HEADER_CORE": "⚙️ Core Acoustic Settings",
+		"RVC_LABEL_F0": "F0 Extraction Method",
+		"RVC_LABEL_EMBEDDER": "Embedder Model",
+		"RVC_LABEL_EXPORT": "Export Format",
+		"RVC_LABEL_PITCH": "Pitch Shift (Semitones)",
+		"RVC_LABEL_INDEX_RATE": "Index Rate (Feature Retrieval)",
+		"RVC_LABEL_VOL_ENV": "Volume Envelope",
+		"RVC_LABEL_PROTECT": "Protect Voiceless Consonants",
+		
+		"RVC_ACC_ADVANCED": "🛠️ Advanced Audio Processing",
+		"RVC_CHK_SPLIT": "Split Audio Before Inference (For long files)",
+		"RVC_CHK_CLEAN": "Clean Audio (Noise Reduction)",
+		"RVC_LABEL_CLEAN_STR": "Cleaning Strength",
+		"RVC_CHK_AUTOTUNE": "Apply F0 Autotune",
+		"RVC_LABEL_AUTOTUNE_STR": "Autotune Strength",
+		
+		"RVC_BTN_INFER": "🚀 Run Voice Conversion",
+		"RVC_LABEL_RESULT": "Converted Audio Output",
+		
+		"RVC_ERR_MISSING_PATHS": "Error: Input, Output, PTH, and Index paths are strictly required.",
+		"RVC_MSG_SUCCESS": "Success :",
+		"RVC_MSG_ERROR": "Error :"
 }

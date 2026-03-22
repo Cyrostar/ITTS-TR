@@ -10,6 +10,8 @@
 		"PREPROCESSOR": "PREPROCESADOR",
 		"TRAINER": "ENTRENADOR",
 		"INFERENCE": "INFERENCIA",
+		"TTS": "TTS",
+		"RVC": "RVC",
 		
 	"section_project": "--- Proyectos (app.py) ---",
 	
@@ -106,7 +108,8 @@
 		"CORPUS_CHK_UNIQUE": "Palabras Únicas",
 		"CORPUS_BTN_PROCESS": "Procesar y Añadir",
 		"CORPUS_LABEL_LOGS": "Registros",
-		"CORPUS_ACC_REPO": "🗂 REPOSITORIOS",
+		"CORPUS_ACC_REPO": "📚 REPOSITORIOS",
+		"CORPUS_DESC_REPO": "Documentos pdf y de texto subidos.",
 		"CORPUS_HEADER_PDF": "### 📂 Repositorio PDF",
 		"CORPUS_LABEL_PDF": "Archivos PDF",
 		"CORPUS_HEADER_TXT": "### 📂 Repositorio de Texto",
@@ -479,5 +482,39 @@
 		"TTS_LABEL_SPEAKER_REF": "Audio de Referencia del Hablante",
 		"TTS_ACC_ADVANCED": "⚙️ Parámetros Avanzados",
 		"TTS_CHK_CUDA": "Habilitar Kernel CUDA de BigVGAN",
-		"TTS_CHK_COMPILE": "Habilitar Torch Compile (Generación más rápida, inicio lento)"
+		"TTS_CHK_COMPILE": "Habilitar Torch Compile (Generación más rápida, inicio lento)",
+		
+	"section_rvc": "--- Pestaña de Inferencia RVC (rvs.py) ---",
+	
+		"RVC_HEADER": "## 🎙️ Motor de Inferencia RVC",
+		"RVC_DESC": "Convierta voces de audio usando Conversión de Voz basada en Recuperación (RVC).",
+		
+		"RVC_HEADER_IO": "📁 Configuración de Entrada / Salida",
+		"RVC_LABEL_INPUT": "Ruta de Audio de Entrada",
+		"RVC_LABEL_OUTPUT": "Ruta de Audio de Salida",
+		"RVC_LABEL_PTH": "Ruta del Modelo de Voz (.pth)",
+		"RVC_LABEL_INDEX": "Ruta del Índice de Características (.index)",
+		
+		"RVC_HEADER_CORE": "⚙️ Configuración Acústica Principal",
+		"RVC_LABEL_F0": "Método de Extracción F0",
+		"RVC_LABEL_EMBEDDER": "Modelo Embedder",
+		"RVC_LABEL_EXPORT": "Formato de Exportación",
+		"RVC_LABEL_PITCH": "Cambio de Tono (Semitonos)",
+		"RVC_LABEL_INDEX_RATE": "Tasa de Índice (Recuperación de Características)",
+		"RVC_LABEL_VOL_ENV": "Envolvente de Volumen",
+		"RVC_LABEL_PROTECT": "Proteger Consonantes Sordas",
+		
+		"RVC_ACC_ADVANCED": "🛠️ Procesamiento de Audio Avanzado",
+		"RVC_CHK_SPLIT": "Dividir Audio Antes de la Inferencia (Para archivos largos)",
+		"RVC_CHK_CLEAN": "Limpiar Audio (Reducción de Ruido)",
+		"RVC_LABEL_CLEAN_STR": "Fuerza de Limpieza",
+		"RVC_CHK_AUTOTUNE": "Aplicar Autotune F0",
+		"RVC_LABEL_AUTOTUNE_STR": "Fuerza de Autotune",
+		
+		"RVC_BTN_INFER": "🚀 Ejecutar Conversión de Voz",
+		"RVC_LABEL_RESULT": "Salida de Audio Convertido",
+		
+		"RVC_ERR_MISSING_PATHS": "Error: Las rutas de Entrada, Salida, PTH e Índice son estrictamente obligatorias.",
+		"RVC_MSG_SUCCESS": "Éxito :",
+		"RVC_MSG_ERROR": "Error :"
 }
