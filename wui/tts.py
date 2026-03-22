@@ -73,9 +73,19 @@ class StandaloneTTS(IndexTTS2):
                 raise FileNotFoundError(f"Missing required architecture file: {os.path.basename(path)}")
                 
         # 4. Initialize base parameters (do_load=False prevents parent's default loading)
-        super().__init__(model_dir=self.model_dir, do_load=False, device=device, use_fp16=use_fp16, 
-                         use_cuda_kernel=use_cuda_kernel, use_torch_compile=use_torch_compile,
-                         tok_type=self.tok_type, loaded_project_name="itts_base_model" if self.tok_type == "indextts" else None)
+        super().__init__(
+            model_dir=self.model_dir, 
+            do_load=False, 
+            device=device, 
+            use_fp16=use_fp16, 
+            use_cuda_kernel=use_cuda_kernel, 
+            use_torch_compile=use_torch_compile,
+            tok_type=self.tok_type, 
+            loaded_project_name="itts_base_model" if self.tok_type == "indextts" else None,
+            custom_config_path=correct_cfg_path,
+            custom_gpt_path=os.path.join(self.ckpt_dir, gpt_file_name),
+            custom_bpe_path=os.path.join(self.ckpt_dir, f"{self.prefix}bpe.model")
+        )
         
         # 5. FORCE RESTORE the correct custom config path! (Overriding the parent's fallback)
         self.cfg_path = correct_cfg_path
@@ -178,12 +188,7 @@ class StandaloneTTS(IndexTTS2):
             case_fmt = "lowercase"
             if "tokenizer" in self.cfg:
                 case_fmt = getattr(self.cfg.tokenizer, "case_format", "lowercase")               
-            
-            # --- DEBUG PRINTS ---
-            print(f"\n>>> DEBUG: Raw case_format read from config is: '{case_fmt}'\n")
-            yield f"   🐞 DEBUG: Raw case_format from config: '{case_fmt}'"
-            # --------------------
-            
+               
             is_upper = (case_fmt == "uppercase")            
             yield f"   ℹ️ Auto-Selected: ITTS-TR BloomTokenizer (MultilingualNormalizer | wordify=True | upper={is_upper})"            
             
@@ -270,7 +275,7 @@ def load_standalone_model(gpt_file_name, use_cuda_ui, use_compile_ui):
 def generate_speech_standalone(
         selected_model, text, seed_val, prompt_audio, emo_method_idx, emo_upload, emo_weight,
         v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
-        do_sample, temp, top_p, max_mel, max_text_seg,
+        do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
         use_cuda_ui, use_compile_ui, language_choice
 ):
     global tts
@@ -355,6 +360,7 @@ def generate_speech_standalone(
             top_p=top_p,
             max_mel_tokens=int(max_mel),
             max_text_tokens_per_segment=int(max_text_seg),
+            interval_silence=int(interval_silence),
             stream_return=False,
             language=language_choice            
         )
@@ -432,7 +438,7 @@ def create_demo():
                 
                 text_input = gr.TextArea(
                     label=_("INFERENCE_LABEL_INPUT_TEXT"), 
-                    value="Sistem başarıyla yüklendi ve otonom üretim modunda çalışmaya hazır.", 
+                    value="After a long and quiet night, the curious traveler slowly opened the old wooden door and stepped into the warm morning light.", 
                     lines=9
                 )
                 
@@ -481,7 +487,8 @@ def create_demo():
             with gr.Row():
                 max_mel = gr.Slider(label=_("INFERENCE_SLIDER_MAX_MEL"), value=1500, minimum=50, maximum=2000)
                 max_text_seg = gr.Slider(label=_("INFERENCE_SLIDER_MAX_TEXT"), value=120, minimum=20, maximum=200)
-
+                interval_silence = gr.Slider(label="Segment Pause (ms)", value=200, minimum=0, maximum=2000, step=50)
+                
         # --- LOGS ---
         system_log = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=10, interactive=False)
 
@@ -506,7 +513,7 @@ def create_demo():
             inputs=[
                 model_dropdown, text_input, seed_input, ref_audio, emo_method, emo_upload, emo_weight,
                 v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
-                do_sample, temp, top_p, max_mel, max_text_seg,
+                do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
                 use_cuda_cb, use_compile_cb, language_dropdown
             ],
             outputs=[audio_out, system_log]

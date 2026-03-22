@@ -620,34 +620,7 @@ def create_demo():
                 lines=6,
                 max_lines=12
             )
-    
-            # --- SECTION: FILE REPOSITORIES ---  
-            with gr.Accordion(_("CORPUS_ACC_REPO"), open=False, elem_classes="wui-accordion"):            
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown(_("CORPUS_HEADER_PDF"))
-                        pdf_files = gr.Textbox(
-                            label=_("CORPUS_LABEL_PDF"), 
-                            value=lambda: list_files_formatted("pdf", ".pdf"), 
-                            lines=10,
-                            max_lines=10,
-                            interactive=False
-                        )
-                    
-                    with gr.Column():
-                        gr.Markdown(_("CORPUS_HEADER_TXT"))
-                        txt_files = gr.Textbox(
-                            label=_("CORPUS_LABEL_TXT"), 
-                            value=lambda: list_files_formatted("txt", ".txt"), 
-                            lines=10,
-                            max_lines=10,
-                            interactive=False
-                        )
-                        
-                gr.HTML("<br>")
-                with gr.Row():
-                    refresh_btn = gr.Button(_("COMMON_BTN_REFRESH"), variant="secondary")
-                
+                  
             # --- SECTION: MERGE BUTTON ---
             gr.HTML("<br>")
             with gr.Row():
@@ -660,6 +633,34 @@ def create_demo():
         # ==========
         with gr.Group():
             gr.Markdown(_("CORPUS_HEADER_UTILS"), elem_classes="wui-markdown")
+            
+        # --- SECTION: FILE REPOSITORIES ---
+        with gr.Accordion(_("CORPUS_ACC_REPO"), open=False, elem_classes="wui-accordion"):    
+            gr.Markdown(_("CORPUS_DESC_REPO"))   
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown(_("CORPUS_HEADER_PDF"))
+                    pdf_files = gr.Textbox(
+                        label=_("CORPUS_LABEL_PDF"), 
+                        value=lambda: list_files_formatted("pdf", ".pdf"), 
+                        lines=10,
+                        max_lines=10,
+                        interactive=False
+                    )
+                
+                with gr.Column():
+                    gr.Markdown(_("CORPUS_HEADER_TXT"))
+                    txt_files = gr.Textbox(
+                        label=_("CORPUS_LABEL_TXT"), 
+                        value=lambda: list_files_formatted("txt", ".txt"), 
+                        lines=10,
+                        max_lines=10,
+                        interactive=False
+                    )
+                    
+            gr.HTML("<br>")
+            with gr.Row():
+                refresh_btn = gr.Button(_("COMMON_BTN_REFRESH"), variant="secondary")
             
         # --- SECTION: YOUTUBE DOWNLOADER ---
         with gr.Accordion(_("CORPUS_ACC_YT"), open=False, elem_classes="wui-accordion"):    

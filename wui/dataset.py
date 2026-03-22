@@ -369,9 +369,9 @@ def create_demo():
                 hf_save_every = gr.Number(label=_("DATASET_LABEL_SAVE_EVERY"), value=1000, precision=0)
                 
             with gr.Row():
-                hf_btn = gr.Button(_("COMMON_BTN_START"), variant="primary")
+                hf_btn = gr.Button(_("COMMON_BTN_START"), variant="primary", elem_classes="wui-button-green")
                 hf_stop = gr.Button(_("COMMON_BTN_STOP"), variant="stop")
-                hf_resume = gr.Button(_("DATASET_BTN_RESUME"))
+                hf_resume = gr.Button(_("DATASET_BTN_RESUME"), elem_classes="wui-button-blue")
             
             with gr.Column():
                 hf_status = gr.Textbox(label=_("DATASET_LABEL_STATUS"), lines=1, interactive=False)

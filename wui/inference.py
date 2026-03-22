@@ -25,7 +25,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- GLOBAL CONFIGURATION ---
-MODEL_DIR = "./indextts/checkpoints"
 tts = None
 
 # ==========================================
@@ -76,9 +75,9 @@ def sync_config_to_checkpoint(cfg, ckpt_path):
     except: pass
     return cfg
     
-def auto_discover_inference_settings(folder_name, is_original):
+def auto_discover_inference_settings(folder_name):
     """Automatically reads case_format and tok_type from the project's config.yaml"""
-    if is_original or not folder_name:
+    if not folder_name:
         return gr.update(value="lowercase"), gr.update(value="itts-tr")
         
     # Check both potential config locations
@@ -104,51 +103,30 @@ def auto_discover_inference_settings(folder_name, is_original):
 # ==========================================
 # Application Logic
 # ==========================================
-def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, use_original_model, case_format, tok_type):
+def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, case_format, tok_type):
     global tts
     log_history = ""
     
-    # -----------------------------------------------------
-    # UPDATED LOGIC: BYPASS FOLDER IF "USE ORIGINAL" IS CHECKED
-    # -----------------------------------------------------
-    if use_original_model:
-        log_history += f"[{time.strftime('%H:%M:%S')}] 🟡 Mode: Base Model (Bypassing custom folder)...\n"
-        yield log_history
-        
-        # Force the project name to something distinct so we know we are in "Original" mode
-        folder_name = "itts_base_model" 
-        core.project_name = folder_name
-        
-        # Force paths to the base checkpoints directory
-        target_train_dir = MODEL_DIR  # ./checkpoints
+    if not folder_name:
+        yield ">> Error: No folder selected."
+        return
+
+    log_history += f"[{time.strftime('%H:%M:%S')}] Selecting project: {folder_name}...\n"
+    yield log_history
+    core.project_name = folder_name
+    
+    target_train_dir = os.path.join(core.path_base, "trains", folder_name)
+    target_project_dir = os.path.join(core.path_base, "projects", folder_name)
+    if not os.path.exists(target_project_dir):
         target_project_dir = None
         
-        log_history += f"📂 Loading directly from: {target_train_dir}\n"
-        yield log_history
-        
-    else:
-        # Standard Logic
-        if not folder_name:
-            yield ">> Error: No folder selected."
+    if not os.path.exists(target_train_dir):
+            log_history += f"❌ Error: Directory not found: {target_train_dir}\n"
+            yield log_history
             return
 
-        log_history += f"[{time.strftime('%H:%M:%S')}] Selecting project: {folder_name}...\n"
-        yield log_history
-        core.project_name = folder_name
-        
-        target_train_dir = os.path.join(core.path_base, "trains", folder_name)
-        target_project_dir = os.path.join(core.path_base, "projects", folder_name)
-        if not os.path.exists(target_project_dir):
-            target_project_dir = None
-            
-        if not os.path.exists(target_train_dir):
-                log_history += f"❌ Error: Directory not found: {target_train_dir}\n"
-                yield log_history
-                return
-
-        log_history += f"📂 Train Dir: {target_train_dir}\n"
-        yield log_history
-    # -----------------------------------------------------
+    log_history += f"📂 Train Dir: {target_train_dir}\n"
+    yield log_history
     
     try:
         if tts is not None:
@@ -164,7 +142,6 @@ def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, use_origin
             yield log_history
             
             tts = IndexTTS2(
-                model_dir=MODEL_DIR,
                 project_dir=target_project_dir,
                 train_dir=target_train_dir,
                 loaded_project_name=folder_name,
@@ -191,7 +168,6 @@ def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, use_origin
                 yield log_history
                 
                 tts = IndexTTS2(
-                    model_dir=MODEL_DIR,
                     project_dir=target_project_dir,
                     train_dir=target_train_dir,
                     loaded_project_name=folder_name,
@@ -216,13 +192,14 @@ def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, use_origin
         yield log_history
         import traceback
         traceback.print_exc()
+
 # ----------------------------------
 
 def generate_speech_logic(
         selected_folder, text, seed_val, prompt_audio, emo_method_idx, emo_upload, emo_weight,
         v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
-        do_sample, temp, top_p, max_mel, max_text_seg,
-        use_cuda_ui, use_compile_ui, use_original_model,language_choice, case_format, tok_type
+        do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
+        use_cuda_ui, use_compile_ui, language_choice, case_format, tok_type
 ):
     global tts
     
@@ -230,21 +207,11 @@ def generate_speech_logic(
     log_history = f"[{time.strftime('%H:%M:%S')}] Request Received.\n"
     yield None, log_history, ""
 
-    # -----------------------------------------------------
-    # DETERMINE TARGET CONFIG BASED ON CHECKBOX
-    # -----------------------------------------------------
-    if use_original_model:
-        current_project = "itts_base_model"
-        target_train_dir = MODEL_DIR
+    current_project = selected_folder
+    target_train_dir = os.path.join(core.path_base, "trains", current_project)
+    target_project_dir = os.path.join(core.path_base, "projects", current_project)
+    if not os.path.exists(target_project_dir):
         target_project_dir = None
-    else:
-        # Use the choice from folder_dropdown directly
-        current_project = selected_folder
-        target_train_dir = os.path.join(core.path_base, "trains", current_project)
-        target_project_dir = os.path.join(core.path_base, "projects", current_project)
-        if not os.path.exists(target_project_dir):
-            target_project_dir = None
-    # -----------------------------------------------------
     
     current_kernel_setting = getattr(tts, 'use_cuda_kernel', False) if tts else False
     current_compile_setting = getattr(tts, 'use_torch_compile', False) if tts else False
@@ -267,9 +234,7 @@ def generate_speech_logic(
             
         try:
             try:
-                # Use do_load=True (default) for blocking auto-load during generation
                 tts = IndexTTS2(
-                    model_dir=MODEL_DIR,
                     project_dir=target_project_dir,
                     train_dir=target_train_dir,
                     loaded_project_name=current_project,
@@ -287,7 +252,6 @@ def generate_speech_logic(
                     yield None, log_history, ""
                     
                     tts = IndexTTS2(
-                        model_dir=MODEL_DIR,
                         project_dir=target_project_dir,
                         train_dir=target_train_dir,
                         loaded_project_name=current_project,
@@ -344,6 +308,7 @@ def generate_speech_logic(
             top_p=top_p,
             max_mel_tokens=int(max_mel),
             max_text_tokens_per_segment=int(max_text_seg),
+            interval_silence=int(interval_silence),
             stream_return=False,
             language=language_choice            
         )
@@ -389,7 +354,7 @@ def create_demo():
             with gr.Column(scale=1):
                 current_folders = get_train_folders()                
                 with gr.Row():                  
-                    with gr.Column(scale=1):                       
+                    with gr.Column(scale=2):                       
                         with gr.Row():
                             folder_dropdown = gr.Dropdown(
                                 label=_("INFERENCE_LABEL_FOLDER"), 
@@ -400,28 +365,21 @@ def create_demo():
                             )                            
                         with gr.Row():
                             refresh_folders_btn = gr.Button(_("COMMON_BTN_REFRESH"), size="sm")                      
-                    with gr.Column(scale=1):                        
-                        with gr.Row():                        
-                            use_original_model_cb = gr.Checkbox(
-                                label=_("INFERENCE_CHK_ORIGINAL_MODEL"), 
-                                value=False,
-                                scale=1
-                            )                   
+                    with gr.Column(scale=1):                                          
                         with gr.Row():                   
                             language_dropdown = gr.Dropdown(
-                            choices=["Auto", "TR", "EN"],
-                            value="Auto",
-                            show_label=False,
-                            interactive=True
+                                choices=["Auto", "TR", "EN"],
+                                value="Auto",
+                                label=_("TTS_LABEL_LANG_INJECT"),
+                                interactive=True
                             )
                             
                 with gr.Row():
                     seed_input = gr.Number(
-                    label=_("INFERENCE_LABEL_SEED"), 
-                    value=-1, 
-                    precision=0
+                        label=_("INFERENCE_LABEL_SEED"), 
+                        value=-1, 
+                        precision=0
                     )
-
                     
                 refresh_folders_btn.click(
                     fn=lambda: gr.Dropdown(choices=get_train_folders()),
@@ -430,14 +388,12 @@ def create_demo():
                 
                 load_btn = gr.Button(_("INFERENCE_BTN_LOAD_MODEL"), variant="secondary")
                 
-                # 2. Input Text (Varsayılan olarak Türkçe)
                 text_input = gr.TextArea(
                     label=_("INFERENCE_LABEL_INPUT_TEXT"), 
                     value="Mum ışığının aydınlattığı köhne kulübede, yorgun yolcu yılmış bakışlarını yavaşça ocağın üzerindeki gümüş çaydanlığa kaydırdı.", 
                     lines=9
                 )
                 
-                # 3. Generate Button
                 gen_btn = gr.Button(_("INFERENCE_BTN_GENERATE"), variant="primary")
 
             # ==========================================
@@ -509,7 +465,8 @@ def create_demo():
             with gr.Row():
                 max_mel = gr.Slider(label=_("INFERENCE_SLIDER_MAX_MEL"), value=1500, minimum=50, maximum=2000)
                 max_text_seg = gr.Slider(label=_("INFERENCE_SLIDER_MAX_TEXT"), value=120, minimum=20, maximum=200)
-
+                interval_silence = gr.Slider(label="Segment Pause (ms)", value=200, minimum=0, maximum=2000, step=50)
+                
         # ==========================================
         # LOGS (Very Bottom)
         # ==========================================
@@ -519,30 +476,15 @@ def create_demo():
         # EVENT WIRING
         # ==========================================
         
-        def change_default_text(is_original):
-            if is_original:
-                return "After a long and quiet night, the curious traveler slowly opened the old wooden door and stepped into the warm morning light."
-            else:
-                return "Mum ışığının aydınlattığı köhne kulübede, yorgun yolcu yılmış bakışlarını yavaşça ocağın üzerindeki gümüş çaydanlığa kaydırdı."
-
-        use_original_model_cb.change(
-            fn=change_default_text,
-            inputs=[use_original_model_cb],
-            outputs=[text_input]
-        )
         folder_dropdown.change(
             fn=auto_discover_inference_settings,
-            inputs=[folder_dropdown, use_original_model_cb],
+            inputs=[folder_dropdown],
             outputs=[case_format, tok_type_dd]
         )        
-        use_original_model_cb.change(
-            fn=auto_discover_inference_settings,
-            inputs=[folder_dropdown, use_original_model_cb],
-            outputs=[case_format, tok_type_dd]
-        )
+        
         demo.load(
             fn=auto_discover_inference_settings,
-            inputs=[folder_dropdown, use_original_model_cb],
+            inputs=[folder_dropdown],
             outputs=[case_format, tok_type_dd]
         )
 
@@ -559,7 +501,7 @@ def create_demo():
         # Load Logic -> Unified Log
         load_btn.click(
             load_custom_model_logic, 
-            inputs=[folder_dropdown, use_cuda_cb, use_compile_cb, use_original_model_cb, case_format, tok_type_dd], 
+            inputs=[folder_dropdown, use_cuda_cb, use_compile_cb, case_format, tok_type_dd], 
             outputs=[system_log]
         )
 
@@ -569,8 +511,8 @@ def create_demo():
             inputs=[
                 folder_dropdown, text_input, seed_input, ref_audio, emo_method, emo_upload, emo_weight,
                 v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
-                do_sample, temp, top_p, max_mel, max_text_seg,
-                use_cuda_cb, use_compile_cb, use_original_model_cb, language_dropdown, case_format, tok_type_dd
+                do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
+                use_cuda_cb, use_compile_cb, language_dropdown, case_format, tok_type_dd
             ],
             outputs=[audio_out, system_log, tokenizer_out_tb]
         )
