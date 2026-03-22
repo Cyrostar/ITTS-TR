@@ -103,11 +103,64 @@ class GenericSpiceTokenizer:
             ids = [ids]
         return [self.sp_model.IdToPiece(i) for i in ids]
 
-    def split_segments(self, tokenized: List[str], max_text_tokens_per_segment=120, **kwargs) -> List[List[str]]:
-
+    def split_segments(self, tokenized: List[str], max_text_tokens_per_segment=120, quick_streaming_tokens=0, **kwargs) -> List[List[str]]:
+        """
+        Intelligently splits token arrays into chunks, prioritizing sentence boundaries 
+        and punctuation to prevent words from being cut in half mid-speech.
+        """
         if not tokenized:
             return []
-        return [tokenized[i : i + max_text_tokens_per_segment] for i in range(0, len(tokenized), max_text_tokens_per_segment)]
+            
+        # SentencePiece uses U+2581 instead of standard spaces!
+        sp_space = '\u2581' 
+        punct_markers = {
+            '.', ',', '!', '?', ';', ':', 
+            sp_space + '.', sp_space + ',', sp_space + '!', 
+            sp_space + '?', sp_space + ';', sp_space + ':'
+        }
+        
+        segments = []
+        current_idx = 0
+        total_len = len(tokenized)
+
+        while current_idx < total_len:
+            # If the remaining tokens fit in one segment, just take them all
+            if total_len - current_idx <= max_text_tokens_per_segment:
+                segments.append(tokenized[current_idx:])
+                break
+
+            # Calculate the hard mathematical limit for this chunk
+            limit_idx = current_idx + max_text_tokens_per_segment
+            
+            # Start scanning backwards from the limit to find a punctuation mark
+            best_cut_idx = limit_idx
+            found_punct = False
+            
+            # Scan back up to 40% of the max_segment size.
+            scan_floor = max(current_idx + (max_text_tokens_per_segment // 2), current_idx + 10)
+            
+            for scan_idx in range(limit_idx - 1, scan_floor - 1, -1):
+                token = tokenized[scan_idx]
+                if token in punct_markers:
+                    # We found a punctuation mark! Cut immediately AFTER it.
+                    best_cut_idx = scan_idx + 1
+                    found_punct = True
+                    break
+                    
+            # If no punctuation was found, search for a word boundary using the special SP space
+            if not found_punct:
+                for scan_idx in range(limit_idx - 1, scan_floor - 1, -1):
+                    token = tokenized[scan_idx]
+                    if token.startswith(sp_space):
+                        # We found the start of a new word! Cut right BEFORE it.
+                        best_cut_idx = scan_idx
+                        break
+
+            # Append the calculated chunk and move the index forward
+            segments.append(tokenized[current_idx:best_cut_idx])
+            current_idx = best_cut_idx
+
+        return segments
 
 class JsonToModelConverter:
     """

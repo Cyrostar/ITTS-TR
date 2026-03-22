@@ -24,8 +24,9 @@ from transformers import AutoTokenizer, SeamlessM4TFeatureExtractor
 from modelscope import AutoModelForCausalLM
 from huggingface_hub import hf_hub_download
 
+from core import core
 from core.spice import GenericSpiceTokenizer
-from core.normalizer import TurkishWalnutNormalizer, TurkishGenericWordifier
+from core.normalizer import MultilingualNormalizer
 
 # ==========================================
 # Helpers
@@ -41,7 +42,7 @@ class IndexTTS2:
     
     def __init__(
         self, 
-        model_dir="checkpoints", 
+        model_dir=None, 
         project_dir=None, 
         train_dir=None, 
         loaded_project_name=None, 
@@ -53,11 +54,15 @@ class IndexTTS2:
         use_torch_compile=False, 
         do_load=True, 
         case_format="lowercase", 
-        tok_type=None
+        tok_type=None,
+        custom_config_path=None,
+        custom_gpt_path=None,
+        custom_bpe_path=None
         ):
         
         # 1. Setup Directories
-        self.model_dir = model_dir
+        # Respect the passed model_dir (which holds the base assets), fallback to indextts/checkpoints
+        self.model_dir = model_dir if model_dir else os.path.join(core.path_base, "indextts", "checkpoints")
         self.project_dir = project_dir
         self.train_dir = train_dir
         self.loaded_project = loaded_project_name
@@ -91,24 +96,26 @@ class IndexTTS2:
             self.use_cuda_kernel = False
             print(">> Be patient, it may take a while to run in CPU mode.")
 
-        # 3. Load Config (Prioritize Train Dir, then Project Dir, then Fallback)
-        potential_configs = []
-        if self.train_dir:
-            potential_configs.append(os.path.join(self.train_dir, "config.yaml"))
-            potential_configs.append(os.path.join(self.train_dir, "config_original.yaml"))
-        if self.project_dir:
-            potential_configs.append(os.path.join(self.project_dir, "configs", "config.yaml"))
-            potential_configs.append(os.path.join(self.project_dir, "config.yaml"))
-        potential_configs.append(os.path.join(self.model_dir, "config.yaml"))
+        # 3. Load Config
+        if custom_config_path and os.path.exists(custom_config_path):
+            self.cfg_path = custom_config_path
+        else:
+            potential_configs = []
+            if self.train_dir:
+                potential_configs.append(os.path.join(self.train_dir, "config.yaml"))
+            if self.project_dir:
+                potential_configs.append(os.path.join(self.project_dir, "configs", "config.yaml"))
+            potential_configs.append(os.path.join(self.model_dir, "config.yaml"))
+            
+            self.cfg_path = potential_configs[-1] # Fallback to base
+            for p in potential_configs:
+                if os.path.exists(p):
+                    self.cfg_path = p
+                    break
 
-        self.cfg_path = potential_configs[-1] # Default fallback
-        for p in potential_configs:
-            if os.path.exists(p):
-                self.cfg_path = p
-                break
-
-        print(f">> Loading Config from: {self.cfg_path}")
         self.cfg = OmegaConf.load(self.cfg_path)
+        self.custom_gpt_path = custom_gpt_path
+        self.custom_bpe_path = custom_bpe_path
         self.dtype = torch.float16 if self.use_fp16 else None
         self.stop_mel_token = self.cfg.gpt.stop_mel_token
 
@@ -168,25 +175,14 @@ class IndexTTS2:
         yield "🧠 Loading Semantic Model (GPT)..."
         self.gpt = UnifiedVoice(**self.cfg.gpt, use_accel=self.use_accel)
         
-        # --- GPT CHECKPOINT LOGIC (Strict) ---
-        if self.loaded_project == "itts_base_model":
-             self.gpt_path = self._resolve_path(self.cfg.gpt_checkpoint)
-        else:
-            # Custom behavior: Strict lookup in train_dir
-            # Priority: gpt.pth -> latest.pth -> (fail/fallback to strictly train_dir)
+        if self.custom_gpt_path:
+            self.gpt_path = self.custom_gpt_path
+        elif self.train_dir:
             p_gpt = os.path.join(self.train_dir, "gpt.pth")
             p_latest = os.path.join(self.train_dir, "latest.pth")
-            
-            if os.path.exists(p_gpt):
-                self.gpt_path = p_gpt
-            elif os.path.exists(p_latest):
-                self.gpt_path = p_latest
-            else:
-                # If neither exists, point to gpt.pth in train_dir so it logs/fails 
-                # correctly instead of silently loading the base model.
-                self.gpt_path = p_gpt 
-        # -------------------------------------
-
+            self.gpt_path = p_latest if os.path.exists(p_latest) else p_gpt
+        else:
+            self.gpt_path = self._resolve_path(self.cfg.gpt_checkpoint)
         yield f"   📂 GPT Path: {self.gpt_path}"
         
         load_checkpoint(self.gpt, self.gpt_path)
@@ -254,31 +250,32 @@ class IndexTTS2:
         # 6. Tokenizer
         yield "📝 Loading Tokenizer..."
         
-        if self.train_dir:
+        if self.custom_bpe_path:
+            self.bpe_path = self.custom_bpe_path
+        elif self.train_dir:
             self.bpe_path = os.path.join(self.train_dir, "bpe.model")
-            # Strict Existence Check
             if not os.path.exists(self.bpe_path):
                 error_msg = f"   ❌ CRITICAL ERROR: 'bpe.model' not found in training folder: {self.train_dir}"
                 yield error_msg
-                raise FileNotFoundError(error_msg) # This stops the loading process and triggers the UI catch-all
+                raise FileNotFoundError(error_msg)
         else:
-            self.bpe_path = None
+            # Ultimate base fallback
+            self.bpe_path = os.path.join(self.model_dir, "bpe.model")
             
-        yield f"   📂 BPE Path: {self.bpe_path if self.bpe_path else 'Default (Base Model Context)'}"
+        yield f"   📂 BPE Path: {self.bpe_path}"
         
-        if self.loaded_project == "itts_base_model":
-            yield "   ℹ️ Using Standard Normalizer (Official)"
-            self.normalizer = TextNormalizer()
-            self.tokenizer = TextTokenizer(self.bpe_path, self.normalizer)
+        if self.tok_type == "indextts":
+            yield "   ℹ️ Using IndexTTS Tokenizer with standard English wordifier"
+            self.normalizer = MultilingualNormalizer(lang="en", wordify=True)
+            self.tokenizer = TextTokenizer(vocab_file=self.bpe_path, normalizer=self.normalizer)
         else:
-            if self.tok_type == "indextts":
-                yield "   ℹ️ Using IndexTTS Tokenizer with dedicated Turkish Walnut Normalizer (Wordify: True)"
-                self.normalizer = TurkishWalnutNormalizer(wordify=True)
-                self.tokenizer = TextTokenizer(vocab_file=self.bpe_path, normalizer=self.normalizer)
-            else:
-                yield f"   ℹ️ Using ITTS-TR Tokenizer (GenericSpiceTokenizer) [Case: {self.case_format}]"
-                self.normalizer = TurkishWalnutNormalizer(upper=(self.case_format == "uppercase"), wordify=True)
-                self.tokenizer = GenericSpiceTokenizer(vocab_file=self.bpe_path, normalizer=self.normalizer)
+            yield f"   ℹ️ Using ITTS-TR Tokenizer (GenericSpiceTokenizer) [Case: {self.case_format}]"
+            self.normalizer = MultilingualNormalizer(
+                lang="tr", 
+                upper=(self.case_format == "uppercase"), 
+                wordify=True
+            )
+            self.tokenizer = GenericSpiceTokenizer(vocab_file=self.bpe_path, normalizer=self.normalizer)
         
         yield "   ✅ Tokenizer Ready"
 
@@ -569,6 +566,12 @@ class IndexTTS2:
 
             text_tokens = self.tokenizer.convert_tokens_to_ids(sent)
             
+            try:
+                seg_text = self.tokenizer.decode(text_tokens)
+                yield f"LOG: 📝 Text: \"{seg_text}\""
+            except Exception:
+                yield f"LOG: 📝 Tokens: {sent}"
+            
             if language == "TR":
                 text_tokens = [3] + text_tokens
                 yield "LOG: Injected TR language ID (3)"
@@ -594,7 +597,7 @@ class IndexTTS2:
                         cond_lengths=torch.tensor([spk_cond_emb.shape[-1]], device=text_tokens.device),
                         emo_cond_lengths=torch.tensor([emo_cond_emb.shape[-1]], device=text_tokens.device),
                         emo_vec=emovec,
-                        do_sample=True, top_p=top_p, top_k=top_k, temperature=temperature,
+                        do_sample=do_sample, top_p=top_p, top_k=top_k, temperature=temperature,
                         num_return_sequences=autoregressive_batch_size, length_penalty=length_penalty,
                         num_beams=num_beams, repetition_penalty=repetition_penalty,
                         max_generate_length=max_mel_tokens, **generation_kwargs
@@ -642,6 +645,7 @@ class IndexTTS2:
                     wav = self.bigvgan(vc_target.float()).squeeze().unsqueeze(0).squeeze(1)
 
                 wav = torch.clamp(32767 * wav, -32767.0, 32767.0)
+                wav, _ = self.trim_trailing_silence(wav, sampling_rate, top_db=25)
                 wavs.append(wav.cpu())
                 if stream_return:
                     yield wav.cpu()

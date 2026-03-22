@@ -208,6 +208,18 @@ button[role="tab"][aria-selected="true"] {
     padding-top: 5px !important;    /* Adjust size as needed */
     padding-bottom: 5px !important; /* Adjust size as needed */
 }
+
+.wui-button-green {
+    background-color: #09845b;
+}
+
+.wui-button-blue {
+    background-color: #095184;
+}
+
+.wui-button-grey {
+    background-color: #3e404f;
+}
 """
 
 def language_list():
