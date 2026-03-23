@@ -17,6 +17,7 @@ from indextts.utils.front import TextTokenizer
 from core.spice import GenericSpiceTokenizer
 from core.spice import JsonToModelConverter
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
+from core.database import SQLiteManager
 
 # --- HELPER FUNCTIONS ---
 
@@ -35,23 +36,24 @@ def list_datasets(lang):
     
 def load_text_from_corpus():
     """
-    Reads lines from the single unified corpus file: corpus/corpus.txt
+    Reads unique text chunks from the unified corpus database.
     """
-    corpus_file = os.path.join(core.corpus_directory(), "corpus.txt")
     texts = []
+    db_path = os.path.join(core.corpus_directory(), "corpus.db")
 
-    if not os.path.exists(corpus_file):
-        print(f"[Corpus] Warning: {corpus_file} not found.")
+    if not os.path.exists(db_path):
+        print(f"[Corpus] Warning: {db_path} not found.")
         return texts
 
     try:
-        with open(corpus_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    texts.append(line)
+        db = SQLiteManager(db_path)
+        records = db.fetch_all("SELECT text FROM normalized_chunks WHERE text IS NOT NULL")
+        for row in records:
+            chunk = row["text"].strip()
+            if chunk:
+                texts.append(chunk)
     except Exception as e:
-        print(f"[Corpus] Failed to read {corpus_file}: {e}")
+        print(f"[Corpus] Failed to read from {db_path}: {e}")
 
     return texts
 
@@ -228,11 +230,18 @@ def train_tokenizer_ui(
         extra_text = injection.tr_corpus(multiplier,True)
         extra_text_processed = normalizer.normalize(extra_text)
         try:
-            corpus_file = os.path.join(core.corpus_directory(), "corpus.txt")
-            with open(corpus_file, "a", encoding="utf-8") as f:
-                f.write(extra_text + "\n")
+            db_path = os.path.join(core.corpus_directory(), "corpus.db")
+            if os.path.exists(db_path):
+                db = SQLiteManager(db_path)
+                upsert_query = """
+                    INSERT INTO normalized_chunks (text, occurrence_count) 
+                    VALUES (?, ?) 
+                    ON CONFLICT(text) DO UPDATE SET 
+                    occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
+                """
+                db.execute_write(upsert_query, (extra_text_processed, 1))
         except Exception as e:
-            yield log(f"⚠️ Warning: Could not append to corpus file: {e}")
+            yield log(f"⚠️ Warning: Could not append injected text to corpus DB: {e}")
 
         corpus_texts.append(extra_text_processed)
         
@@ -252,7 +261,10 @@ def train_tokenizer_ui(
     # 7. Parse Special Tokens
     user_symbols = []
    
-    tr_lang = ["▁[TR]", "▁[EN]"]    
+    if lang.upper() == "EN":
+        tr_lang = ["▁[TR]", "▁[EN]"]
+    else:
+        tr_lang = [f"▁[{lang.upper()}]", "▁[EN]"]   
     
     tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
     
