@@ -6,7 +6,11 @@ import subprocess
 import re
 import string
 import datetime
+import concurrent.futures
+import multiprocessing
+from collections import defaultdict
 from pypdf import PdfReader
+import sentencepiece as spm
 
 import gc
 import torch
@@ -19,36 +23,10 @@ from demucs.apply import apply_model
 
 from core import core
 from core.core import _
+from core.database import SQLiteManager
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
 
 # --- HELPER FUNCTIONS ---
-    
-def extract_text_from_pdf(pdf_path: str) -> str:
-    reader = PdfReader(pdf_path)
-    pages = []
-    for page in reader.pages:
-        txt = page.extract_text()
-        if txt:
-            pages.append(txt)
-    return "\n".join(pages)
-
-def get_pdf_list():
-    """Returns a list of full paths to PDF files for gr.Files component."""
-    d = os.path.join(core.corpus_directory(), "pdf")
-    if not os.path.exists(d):
-        return []
-    files = [os.path.join(d, f) for f in os.listdir(d) if f.lower().endswith(".pdf")]
-    files.sort()
-    return files
-
-def get_txt_list():
-    """Returns a list of full paths to TXT files for gr.Files component."""
-    d = os.path.join(core.corpus_directory(), "txt")
-    if not os.path.exists(d):
-        return []
-    files = [os.path.join(d, f) for f in os.listdir(d) if f.lower().endswith(".txt")]
-    files.sort()
-    return files
 
 def refresh_lists():
     """Manual refresh handler returning formatted strings."""
@@ -71,76 +49,290 @@ def list_files_formatted(subfolder, extension):
     except Exception as e:
         return f"Error: {str(e)}"
 
-# --- MERGE LOGIC ---
+# --- DATABASE & TOKENIZER MANAGER ---
 
-def merge_mix_files_ui(progress=gr.Progress()):
-    """
-    Reads all files from corpus/mix and combines them into corpus/corpus.txt
-    """
-    logs = []
-    def log(msg):
-        logs.append(msg)
-        return "\n".join(logs)
+def get_db():
+    db_dir = core.corpus_directory()
+    os.makedirs(db_dir, exist_ok=True)
+    db_path = os.path.join(db_dir, "corpus.db")
+    return SQLiteManager(db_path)
+
+def init_db():
+    """Ensures the db folder exists and initializes relational SQLite tables."""
+    db = get_db()
     
-    corpus_dir = core.corpus_directory()
-    mix_dir = os.path.join(corpus_dir, "mix")
-    output_path = os.path.join(corpus_dir, "corpus.txt")
+    # 1. Parent Table: Tracks processed PDFs with a unique ID
+    db.create_table(
+        "processed_pdfs", 
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, pdf_name TEXT UNIQUE"
+    )
     
-    if not os.path.exists(mix_dir):
-        return log("❌ 'Mix' folder does not exist. Process some files first.")
-        
-    # Get all .txt files in mix
-    files = [f for f in os.listdir(mix_dir) if f.lower().endswith(".txt")]
-    files.sort()
+    # 2. Child Table: Stores raw text chunks
+    db.create_table(
+        "pdf_chunks", 
+        "pdf_id INTEGER, page_number INTEGER, text TEXT, FOREIGN KEY(pdf_id) REFERENCES processed_pdfs(id)"
+    )
     
-    if not files:
-        return log("⚠️ No processed text files found in 'corpus/mix'.")
-        
-    log(f"🔄 Found {len(files)} files. Merging...")
-    
-    all_content = []
-    
-    # Read and accumulate
-    for filename in files:
-        p = os.path.join(mix_dir, filename)
-        try:
-            with open(p, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    all_content.append(content)
-        except Exception as e:
-            log(f"⚠️ Skipped {filename}: {str(e)}")
-            
-    if not all_content:
-        return log("❌ No valid content extracted to merge.")
-        
-    # Join with newlines
-    final_text = "\n".join(all_content)
-    
-    # Write to corpus root
+    # 3. Normalized Table: Stores unique cleaned chunks and their occurrence count
+    db.create_table(
+        "normalized_chunks",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT UNIQUE, occurrence_count INTEGER DEFAULT 1"
+    )
+    return db
+
+def is_actual_pdf(file_path):
+    """Reads the first 5 bytes of a file to verify it has the %PDF- magic number."""
     try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(final_text)
+        with open(file_path, 'rb') as f:
+            header = f.read(5)
+            return header == b'%PDF-'
+    except Exception:
+        return False
+
+def _extract_pdf_worker(args):
+    """
+    Top-level worker function that extracts text from a PDF on a separate CPU core.
+    """
+    pdf_file, pdf_path, chunk_size = args
+    try:
+        reader = PdfReader(pdf_path, strict=False)
+        extracted_chunks = []
+        
+        for page_num, page in enumerate(reader.pages, start=1):
+            try:
+                extracted_text = page.extract_text()
+                if extracted_text:
+                    words = extracted_text.split()
+                    for i in range(0, len(words), chunk_size):
+                        chunk = " ".join(words[i:i + chunk_size])
+                        if chunk.strip():
+                            extracted_chunks.append((page_num, chunk))
+            except Exception:
+                pass 
+                
+        return (pdf_file, True, extracted_chunks)
+    except Exception as e:
+        return (pdf_file, False, str(e))
+
+def _normalize_worker(args):
+    """
+    Top-level worker function that normalizes a batch of text chunks on a separate CPU core.
+    """
+    lang_code, raw_texts = args
+    local_counts = defaultdict(int)
+    
+    # Instantiate the normalizer locally inside the worker process
+    normalizer = MultilingualNormalizer(lang=lang_code, wordify=True, abbreviations=True)
+    
+    for raw_text in raw_texts:
+        if raw_text and raw_text.strip():
+            try:
+                norm_text = normalizer.normalize(raw_text) if hasattr(normalizer, 'normalize') else normalizer(raw_text)
+                if norm_text and str(norm_text).strip():
+                    # Increment the local counter
+                    local_counts[str(norm_text).strip()] += 1
+            except Exception:
+                continue
+                
+    return dict(local_counts) # Return as standard dictionary to pass back to main thread
+
+def process_pdfs(folder_path, chunk_size, max_workers, progress=gr.Progress()):
+    """Iterates through PDFs, processes them in parallel across CPU cores, and saves to SQLite."""
+    if not folder_path or not os.path.exists(folder_path):
+        return "❌ Error: The specified folder does not exist."
+    
+    pdf_files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith('.pdf')])
+    if not pdf_files:
+        return "⚠️ No PDF files found in the specified directory."
+    
+    db = init_db()
+    
+    total_chunks_inserted = 0
+    success_count = 0
+    ui_logs = []
+    
+    existing_rows = db.fetch_all("SELECT pdf_name FROM processed_pdfs")
+    processed_set = {row["pdf_name"] for row in existing_rows}
+    
+    pending_pdfs = []
+    for pdf_file in pdf_files:
+        if pdf_file in processed_set:
+            ui_logs.append(f"⏩ Skipped: {pdf_file} (Already in database)")
+            continue
             
-        log("✅ SUCCESS: All mix files combined.")
-        log(f"📂 Created: {output_path}")
-        log(f"📊 Total Characters: {len(final_text)}")
-        log(f"📄 Total Lines: {final_text.count(chr(10))}")
+        pdf_path = os.path.join(folder_path, pdf_file)
+        
+        if not is_actual_pdf(pdf_path):
+            ui_logs.append(f"🛡️ Security Rejection: {pdf_file} is not a valid PDF file.")
+            continue
+            
+        pending_pdfs.append((pdf_file, pdf_path, int(chunk_size)))
+        
+    if not pending_pdfs:
+        final_msg = "✅ All PDFs are already in the database. No new files to process."
+        if ui_logs: final_msg += "\n\n--- LOGS ---\n" + "\n".join(ui_logs)
+        return final_msg
+
+    safe_workers = max(1, int(max_workers))
+    ui_logs.append(f"🚀 Utilizing {safe_workers} CPU cores for parallel extraction...")
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
+        futures = {executor.submit(_extract_pdf_worker, args): args[0] for args in pending_pdfs}
+        
+        for future in progress.tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing PDFs..."):
+            pdf_file = futures[future]
+            try:
+                _, success, result = future.result()
+                
+                if success:
+                    db.execute_write("INSERT INTO processed_pdfs (pdf_name) VALUES (?)", (pdf_file,))
+                    pdf_record = db.fetch_one("SELECT id FROM processed_pdfs WHERE pdf_name = ?", (pdf_file,))
+                    pdf_id = pdf_record["id"]
+                    
+                    db_ready_chunks = [(pdf_id, page_num, chunk) for page_num, chunk in result]
+                    
+                    if db_ready_chunks:
+                        db.execute_many(
+                            "INSERT INTO pdf_chunks (pdf_id, page_number, text) VALUES (?, ?, ?)",
+                            db_ready_chunks
+                        )
+                        total_chunks_inserted += len(db_ready_chunks)
+                        
+                    success_count += 1
+                else:
+                    ui_logs.append(f"❌ Error on {pdf_file}: {result}")
+                    
+            except Exception as e:
+                ui_logs.append(f"❌ Fatal process error on {pdf_file}: {str(e)}")
+                
+    final_status = f"✅ Processed {success_count}/{len(pending_pdfs)} new PDFs. Inserted {total_chunks_inserted} raw text chunks.\n"
+    if ui_logs:
+        final_status += "\n--- LOGS ---\n" + "\n".join(ui_logs)
+        
+    return final_status
+
+def normalize_database(lang_code, max_workers, progress=gr.Progress()):
+    """Reads raw chunks, normalizes them in parallel, aggregates duplicates, and saves."""
+    try:
+        db = init_db()
+       
+        count_record = db.fetch_one("SELECT COUNT(*) as total FROM pdf_chunks WHERE text IS NOT NULL")
+        total_rows = count_record["total"] if count_record else 0
+        
+        if total_rows == 0:
+            return "⚠️ No raw chunks found. Please process PDFs first."
+            
+        progress(0, desc="Loading raw chunks from database into RAM...")
+        records = db.fetch_all("SELECT text FROM pdf_chunks WHERE text IS NOT NULL")
+        
+        # Extract just the text strings to reduce memory overhead
+        raw_texts = [row["text"] for row in records]
+        
+        # Determine chunk size to split the work among CPU cores
+        safe_workers = max(1, int(max_workers))
+        chunk_size = 50000 
+        batches = [(lang_code, raw_texts[i:i + chunk_size]) for i in range(0, len(raw_texts), chunk_size)]
+        
+        # Free up the massive raw list from RAM
+        del records
+        del raw_texts 
+        
+        global_counts = defaultdict(int)
+        
+        with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
+            futures = {executor.submit(_normalize_worker, batch): batch for batch in batches}
+            
+            for future in progress.tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Normalizing across CPU cores..."):
+                try:
+                    local_counts = future.result()
+                    # Safely merge the worker's local dictionary into the global dictionary
+                    for text, count in local_counts.items():
+                        global_counts[text] += count
+                except Exception as e:
+                    print(f"⚠️ Worker error skipped: {e}")
+                    
+        progress(0.95, desc="Writing unique deduplicated chunks back to SQLite...")
+        
+        insert_data = [(text, count) for text, count in global_counts.items()]
+        if not insert_data:
+            return "❌ Normalization resulted in 0 valid chunks."
+
+        batch_size = 50000
+        total_inserted = 0
+        
+        for i in range(0, len(insert_data), batch_size):
+            batch = insert_data[i:i + batch_size]
+            db.execute_many(
+                "INSERT INTO normalized_chunks (text, occurrence_count) VALUES (?, ?)",
+                batch
+            )
+            total_inserted += len(batch)
+            
+        progress(1.0, desc="Normalization Complete!")
+        return f"✅ Parallel Normalization complete! {total_rows:,} raw chunks reduced to {total_inserted:,} unique clean chunks."
         
     except Exception as e:
-        return log(f"❌ Error writing corpus file: {str(e)}")
+        return f"❌ Error during normalization: {e}"
+
+def truncate_database():
+    """Empties all records from the database tables and resets auto-incrementing IDs."""
+    try:
+        db = init_db()
+        chunks_cleared = db.truncate_table("pdf_chunks")
+        pdfs_cleared = db.truncate_table("processed_pdfs")
+        norm_cleared = db.truncate_table("normalized_chunks")
         
-    return "\n".join(logs)
+        if chunks_cleared and pdfs_cleared and norm_cleared:
+            return "🗑️ ✅ Database truncated successfully. All tables have been reset."
+        else:
+            return "❌ Error: Failed to truncate one or more tables."
+    except Exception as e:
+        return f"❌ Error during truncation: {e}"
+
+def train_tokenizer(vocab_size, model_prefix):
+    """Trains SentencePiece from the pre-normalized unique text chunks."""
+    try:
+        db = get_db()
+        full_prefix_path = os.path.join(core.corpus_directory(), model_prefix)
+        
+        def sqlite_text_generator():
+            # Now we fetch directly from the pre-cleaned table
+            records = db.fetch_all("SELECT text, occurrence_count FROM normalized_chunks")
+            valid_chunks_yielded = 0
+            
+            for row in records:
+                # We yield the chunk ONLY ONCE to completely strip repeating spam weight, 
+                # strictly enforcing a flat uniqueness for the tokenizer.
+                yield row["text"]
+                valid_chunks_yielded += 1
+                        
+            if valid_chunks_yielded == 0:
+                raise RuntimeError("The text stream is empty. Please run the Normalizer step first.")
+                        
+        spm.SentencePieceTrainer.train(
+            sentence_iterator=sqlite_text_generator(),
+            model_prefix=full_prefix_path,
+            vocab_size=int(vocab_size),
+            model_type="bpe",
+            character_coverage=0.9995,
+            hard_vocab_limit=False,
+            pad_id=0,
+            unk_id=1,
+            bos_id=2,
+            eos_id=3
+        )
+        return f"✅ Tokenizer '{model_prefix}.model' built successfully with vocab size {int(vocab_size)}!"
+    except Exception as e:
+        return f"❌ Error training tokenizer: {e}"
 
 # --- CORE PROCESSING LOGIC ---
 
-def add_file_to_corpus_ui(file_objs, corpus_name, is_unique, lang, progress=gr.Progress()):
+def save_files_ui(file_objs, corpus_name, progress=gr.Progress()):
     """
-    Handles LIST of uploaded files.
+    Handles LIST of uploaded files. Saves them to corpus/pdf and corpus/txt.
     """
     logs = []
     
-    # Helper to yield consistent output
     def update_step(msg):
         logs.append(msg)
         return "\n".join(logs)
@@ -151,32 +343,23 @@ def add_file_to_corpus_ui(file_objs, corpus_name, is_unique, lang, progress=gr.P
     if not file_objs:
         return fail_return("❌ No files uploaded.")
     
-    # Ensure it's a list (Gradio might pass single object if file_count was singular, but with multiple it sends list)
     if not isinstance(file_objs, list):
         file_objs = [file_objs]
 
-    # Directories
     corpus_dir = core.corpus_directory()
     pdf_dir = os.path.join(corpus_dir, "pdf")
     txt_dir = os.path.join(corpus_dir, "txt")
-    mix_dir = os.path.join(corpus_dir, "mix")
     
     os.makedirs(pdf_dir, exist_ok=True)
     os.makedirs(txt_dir, exist_ok=True)
-    os.makedirs(mix_dir, exist_ok=True)
 
     total_files = len(file_objs)
-    yield update_step(f"🚀 Starting batch process for {total_files} file(s)..."), gr.update(), gr.update()
+    yield update_step(f"🚀 Starting batch save for {total_files} file(s)..."), gr.update(), gr.update()
 
-    # Iterate over files
     for idx, file_obj in enumerate(file_objs):
-        
-        # Determine name for this specific file
-        original_filename = os.path.basename(file_obj.name) # .name is safe in recent gradio versions for temp paths
+        original_filename = os.path.basename(file_obj.name)
         base_name = os.path.splitext(original_filename)[0]
         
-        # LOGIC: Use 'corpus_name' ONLY if it's a single file upload. 
-        # If multiple, ignore input and use original filename to prevent overwrite.
         if total_files == 1 and corpus_name:
             final_name = corpus_name
         else:
@@ -184,65 +367,141 @@ def add_file_to_corpus_ui(file_objs, corpus_name, is_unique, lang, progress=gr.P
 
         file_ext = os.path.splitext(original_filename)[1].lower()
         
-        progress(idx / total_files, desc=f"Processing {original_filename}")
+        progress(idx / total_files, desc=f"Saving {original_filename}")
         logs.append(f"\n--- 📄 File {idx+1}/{total_files}: {original_filename} ---")
         
         try:
-            raw_text = ""
-            
             if file_ext == ".pdf":
                 dest_path = os.path.join(pdf_dir, f"{final_name}.pdf")
                 if os.path.exists(dest_path): os.remove(dest_path)
                 shutil.move(file_obj.name, dest_path)
-                
                 logs.append(f"   💾 Saved PDF to corpus/pdf/")
-                raw_text = extract_text_from_pdf(dest_path)
 
             elif file_ext == ".txt":
                 dest_path = os.path.join(txt_dir, f"{final_name}.txt")
                 if os.path.exists(dest_path): os.remove(dest_path)
                 shutil.move(file_obj.name, dest_path)
-                
                 logs.append(f"   💾 Saved TXT to corpus/txt/")
-                with open(dest_path, "r", encoding="utf-8", errors="ignore") as f:
-                    raw_text = f.read()
             else:
                 logs.append(f"   ⚠️ Skipped: Unsupported format {file_ext}")
                 continue
 
-            # Process Words
-            if not raw_text.strip():
-                logs.append("   ⚠️ Empty text content.")
-                continue
-                
-            normalizer = MultilingualNormalizer(lang=lang, wordify=True, abbreviations=True)
-            normalized_text = normalizer.normalize(raw_text)
-                    
-            sentences = [s.strip() for s in normalized_text.split('.') if s.strip()]
-            
-            if is_unique:
-                sentences = list(dict.fromkeys([s.strip() for s in sentences if s.strip()]))
-
-            # Save Mix
-            mix_output = os.path.join(mix_dir, f"{final_name}.txt")
-            with open(mix_output, "w", encoding="utf-8") as f:
-                for sentence in sentences:
-                    f.write(f"{sentence}.\n")
-            
-            logs.append(f"   ✅ Processed: {len(sentences)} lines -> corpus/mix/")
-
         except Exception as e:
             logs.append(f"   ❌ Error: {str(e)}")
             
-        # Yield update for log stream
         yield "\n".join(logs), gr.update(), gr.update()
 
-    # Final Yield
-    logs.append("\n✨ BATCH COMPLETE ✨")
+    logs.append("\n✨ BATCH SAVE COMPLETE ✨")
     yield "\n".join(logs), list_files_formatted("pdf", ".pdf"), list_files_formatted("txt", ".txt")
+
+def process_and_add_workspace_files(lang_code, chunk_size, progress=gr.Progress()):
+    """
+    Reads all PDF and TXT files from the workspace, chunks them dynamically based on user input, 
+    normalizes them, and performs a direct UPSERT into the normalized_chunks DB table.
+    """
+    db = init_db()
+    corpus_dir = core.corpus_directory()
+    pdf_dir = os.path.join(corpus_dir, "pdf")
+    txt_dir = os.path.join(corpus_dir, "txt")
+    
+    pdf_files = [os.path.join(pdf_dir, f) for f in os.listdir(pdf_dir) if f.lower().endswith('.pdf')] if os.path.exists(pdf_dir) else []
+    txt_files = [os.path.join(txt_dir, f) for f in os.listdir(txt_dir) if f.lower().endswith('.txt')] if os.path.exists(txt_dir) else []
+    
+    all_files = pdf_files + txt_files
+    if not all_files:
+        return "⚠️ No PDF or TXT files found in the workspace repositories."
+        
+    normalizer = MultilingualNormalizer(lang=lang_code, wordify=True, abbreviations=True)
+    chunk_size = int(chunk_size)
+    local_counts = defaultdict(int)
+    
+    ui_logs = [f"🚀 Processing {len(all_files)} files from workspace..."]
+    progress(0, desc="Extracting and chunking text...")
+    
+    total_files = len(all_files)
+    
+    for idx, file_path in enumerate(all_files):
+        ext = os.path.splitext(file_path)[1].lower()
+        extracted_text = ""
+        
+        try:
+            if ext == '.pdf':
+                reader = PdfReader(file_path, strict=False)
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        extracted_text += page_text + " "
+            elif ext == '.txt':
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    extracted_text = f.read()
+                    
+            if extracted_text:
+                words = extracted_text.split()
+                # Chunk text dynamically based on specified chunk_size parameter
+                for i in range(0, len(words), chunk_size):
+                    chunk = " ".join(words[i:i + chunk_size])
+                    if chunk.strip():
+                        # Normalize the chunk
+                        norm_text = normalizer.normalize(chunk) if hasattr(normalizer, 'normalize') else normalizer(chunk)
+                        if norm_text and str(norm_text).strip():
+                            local_counts[str(norm_text).strip()] += 1
+                            
+        except Exception as e:
+            ui_logs.append(f"❌ Error processing {os.path.basename(file_path)}: {str(e)}")
+        
+        progress((idx + 1) / total_files, desc=f"Processing {os.path.basename(file_path)}")
+        
+    if not local_counts:
+        ui_logs.append("⚠️ No valid text chunks were extracted and normalized.")
+        return "\n".join(ui_logs)
+        
+    progress(0.9, desc="Saving directly to database...")
+    ui_logs.append(f"✨ Extracted {len(local_counts)} unique normalized chunks. Upserting to database...")
+    
+    insert_data = [(text, count) for text, count in local_counts.items()]
+    
+    # Use UPSERT to elegantly aggregate duplicates if the text is already in the DB table
+    upsert_query = """
+        INSERT INTO normalized_chunks (text, occurrence_count) 
+        VALUES (?, ?) 
+        ON CONFLICT(text) DO UPDATE SET 
+        occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
+    """
+    
+    batch_size = 50000
+    total_inserted = 0
+    
+    try:
+        for i in range(0, len(insert_data), batch_size):
+            batch = insert_data[i:i + batch_size]
+            db.execute_many(upsert_query, batch)
+            total_inserted += len(batch)
+        ui_logs.append(f"✅ Successfully added {total_inserted} chunk blocks into the vocabulary database!")
+    except Exception as e:
+        ui_logs.append(f"❌ Database Error: {str(e)}")
+        
+    return "\n".join(ui_logs)
 
 def open_video_folder():
     folder_path = os.path.join(core.wui_outs, "video")
+
+    if not os.path.exists(folder_path):
+        return "Folder does not exist."
+
+    os.startfile(folder_path)
+    return "Folder opened."
+    
+def open_cleaner_folder():
+    folder_path = os.path.join(core.wui_outs, "cleaner")
+
+    if not os.path.exists(folder_path):
+        return "Folder does not exist."
+
+    os.startfile(folder_path)
+    return "Folder opened."
+
+def open_diarization_folder():
+    folder_path = os.path.join(core.wui_outs, "diarization")
 
     if not os.path.exists(folder_path):
         return "Folder does not exist."
@@ -582,49 +841,73 @@ def create_demo():
     with gr.Blocks() as demo:
         gr.Markdown(_("CORPUS_HEADER"))
         gr.Markdown(_("CORPUS_DESC"))        
+        
+        with gr.Tabs():            
+            # --- TAB 1: PDF Corpus Builder ---
+            with gr.Tab(_("CORPUS_DB_TAB_PDF")):
+                gr.Markdown(_("CORPUS_DB_DESC_PDF"))
+                
+                with gr.Row():
+                    folder_input = gr.Textbox(
+                        label=_("CORPUS_DB_LABEL_FOLDER"), 
+                        placeholder=_("CORPUS_DB_PLACEHOLDER_FOLDER"),
+                        scale=3
+                    )
+                    chunk_input = gr.Number(
+                        label=_("CORPUS_DB_LABEL_CHUNK"), 
+                        value=10, 
+                        precision=0,
+                        scale=1
+                    )
+                    worker_input = gr.Slider(
+                        label=_("CORPUS_DB_LABEL_WORKERS"), 
+                        minimum=1, 
+                        maximum=multiprocessing.cpu_count(), 
+                        value=max(1, multiprocessing.cpu_count() // 2), 
+                        step=1,
+                        scale=1
+                    )
+                    
+                with gr.Row():
+                    process_btn = gr.Button(_("CORPUS_DB_BTN_PROCESS"), variant="primary")
+                    truncate_btn = gr.Button(_("CORPUS_DB_BTN_TRUNCATE"), variant="stop")
+                    
+                with gr.Row():
+                    db_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_LOGS"), interactive=False, lines=3)
 
-        with gr.Group():
-            gr.Markdown(_("CORPUS_HEADER_ADD"))
-            gr.Markdown(_("CORPUS_DESC_ADD"))
-        
-            with gr.Row():
-                file_input = gr.File(
-                    label=_("COMMON_LABEL_UPLOAD"),
-                    file_types=[".pdf", ".txt"],
-                    file_count="multiple" 
-                )
-        
-            with gr.Row():
-                corpus_name = gr.Textbox(
-                    label=_("CORPUS_LABEL_NAME"),
-                    placeholder=_("CORPUS_PLACEHOLDER_NAME"),
-                    scale=4
-                )
-                corpus_lang = gr.Dropdown(
-                    label=_("COMMON_LABEL_LANG"),
-                    choices=lang_options, 
-                    value="tr",
-                    scale=1
-                )
-                is_unique = gr.Checkbox(
-                    label=_("CORPUS_CHK_UNIQUE"),
-                    value=False,
-                    scale=1
-                )
-        
-            with gr.Row():
-                add_btn = gr.Button(_("CORPUS_BTN_PROCESS"), variant="primary")
-        
-            corpus_log = gr.Textbox(
-                label=_("COMMON_LABEL_LOGS"),
-                lines=6,
-                max_lines=12
-            )
-                  
-            # --- SECTION: MERGE BUTTON ---
-            gr.HTML("<br>")
-            with gr.Row():
-                merge_btn = gr.Button(_("CORPUS_BTN_MERGE"), variant="primary")
+            # --- TAB 2: Text Normalizer ---
+            with gr.Tab(_("CORPUS_DB_TAB_NORM")):
+                gr.Markdown(_("CORPUS_DB_DESC_NORM"))
+                
+                with gr.Row():
+                    lang_input = gr.Dropdown(label=_("CORPUS_DB_LABEL_LANG_PIPE"), choices=["tr", "en", "es"], value="tr")
+                    worker_input_norm = gr.Slider(
+                        label=_("CORPUS_DB_LABEL_WORKERS"), 
+                        minimum=1, 
+                        maximum=multiprocessing.cpu_count(), 
+                        value=max(1, multiprocessing.cpu_count() // 2), 
+                        step=1
+                    )
+                
+                with gr.Row():
+                    norm_btn = gr.Button(_("CORPUS_DB_BTN_NORMALIZE"), variant="primary")
+                    
+                with gr.Row():
+                    norm_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_NORM_STATUS"), interactive=False, lines=2)
+
+            # --- TAB 3: Tokenizer ---
+            with gr.Tab(_("CORPUS_DB_TAB_TOK")):
+                gr.Markdown(_("CORPUS_DB_DESC_TOK"))
+                
+                with gr.Row():
+                    vocab_input = gr.Number(label=_("CORPUS_DB_LABEL_VOCAB"), value=8000, precision=0)
+                    prefix_input = gr.Textbox(label=_("CORPUS_DB_LABEL_PREFIX"), value="itts_bpe")
+                    
+                with gr.Row():
+                    train_btn = gr.Button(_("CORPUS_DB_BTN_TRAIN"), variant="primary")
+                    
+                with gr.Row():
+                    tok_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_TOK_STATUS"), interactive=False, lines=2)
                 
         gr.HTML("<div style='height:10px'></div>")
         
@@ -633,6 +916,43 @@ def create_demo():
         # ==========
         with gr.Group():
             gr.Markdown(_("CORPUS_HEADER_UTILS"), elem_classes="wui-markdown")
+            
+        # --- SECTION: UPLOAD DOCUMENTS ---
+        with gr.Accordion(_("CORPUS_HEADER_ADD"), open=False, elem_classes="wui-accordion"):    
+            gr.Markdown(_("CORPUS_DESC_ADD"))   
+            with gr.Row():
+                file_input = gr.File(
+                    label=_("COMMON_LABEL_UPLOAD"),
+                    file_types=[".pdf", ".txt"],
+                    file_count="multiple" 
+                )
+            with gr.Row():
+                corpus_name = gr.Textbox(
+                    label=_("CORPUS_LABEL_NAME"),
+                    placeholder=_("CORPUS_PLACEHOLDER_NAME"),
+                    scale=3
+                )
+                corpus_lang = gr.Dropdown(
+                    label=_("COMMON_LABEL_LANG"),
+                    choices=lang_options, 
+                    value="tr",
+                    scale=1
+                )
+                corpus_chunk = gr.Number(
+                    label=_("CORPUS_DB_LABEL_CHUNK"),
+                    value=10, 
+                    precision=0,
+                    scale=1
+                )
+            with gr.Row():
+                save_btn = gr.Button(_("CORPUS_BTN_DSAVE"), variant="secondary", elem_classes="wui-button-blue")
+                process_and_add_btn = gr.Button(_("CORPUS_BTN_DMERGE"), variant="primary", elem_classes="wui-button-green")
+            with gr.Row():
+                corpus_log = gr.Textbox(
+                    label=_("COMMON_LABEL_LOGS"),
+                    lines=6,
+                    max_lines=6
+                )
             
         # --- SECTION: FILE REPOSITORIES ---
         with gr.Accordion(_("CORPUS_ACC_REPO"), open=False, elem_classes="wui-accordion"):    
@@ -685,6 +1005,8 @@ def create_demo():
             clean_btn = gr.Button(_("CORPUS_BTN_ISOLATE"), variant="primary")
             
             clean_output = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=5)
+            
+            clean_folder_btn = gr.Button(_("CORPUS_BTN_OPEN_DIR"))
            
         # --- SECTION: AUDIO TRANSCRIPTOR ---
         with gr.Accordion(_("CORPUS_ACC_WHISPER"), open=False, elem_classes="wui-accordion"):
@@ -752,13 +1074,8 @@ def create_demo():
                     gr.Markdown(_("CORPUS_HEADER_DIA_FILES"))
                     first_speaker_audio = gr.Audio(label=_("CORPUS_LABEL_DIA_PREVIEW"), type="filepath", interactive=False)
                     file_output = gr.File(label=_("CORPUS_LABEL_DIA_DOWNLOAD"), file_count="multiple")
+                    dia_folder_btn = gr.Button(_("CORPUS_BTN_OPEN_DIR"))
 
-        diarize_btn.click(
-            fn=diarization_audio_ui, 
-            inputs=[audio_input, trim_toggle, gap_input, min_s, max_s], 
-            outputs=[first_speaker_audio, file_output]
-        )
-    
         # --- SECTION: DOCUMENT NAMER ---
         with gr.Accordion(_("CORPUS_ACC_NAMER"), open=False, elem_classes="wui-accordion"):
             gr.Markdown(_("CORPUS_DESC_NAMER"))
@@ -810,23 +1127,33 @@ def create_demo():
             
             ab_output = gr.Textbox(label=_("CORPUS_LABEL_RESULT"), interactive=True)
              
-        # ACTIONS       
-        add_btn.click(
-            fn=add_file_to_corpus_ui,
-            inputs=[file_input, corpus_name, is_unique, corpus_lang],
+        # ==========================================
+        # ACTIONS
+        # ==========================================
+        
+        # Database Manager
+        process_btn.click(fn=process_pdfs, inputs=[folder_input, chunk_input, worker_input], outputs=db_output_log)
+        truncate_btn.click(fn=truncate_database, inputs=None, outputs=db_output_log)
+        norm_btn.click(fn=normalize_database, inputs=[lang_input, worker_input_norm], outputs=norm_output_log)
+        train_btn.click(fn=train_tokenizer, inputs=[vocab_input, prefix_input], outputs=tok_output_log)
+        
+        # Tools
+        save_btn.click(
+            fn=save_files_ui,
+            inputs=[file_input, corpus_name],
             outputs=[corpus_log, pdf_files, txt_files] 
+        )
+        
+        process_and_add_btn.click(
+            fn=process_and_add_workspace_files,
+            inputs=[corpus_lang, corpus_chunk],
+            outputs=[corpus_log]
         )
         
         refresh_btn.click(
             fn=refresh_lists,
             inputs=[],
             outputs=[pdf_files, txt_files]
-        )
-        
-        merge_btn.click(
-            fn=merge_mix_files_ui,
-            inputs=[],
-            outputs=[corpus_log] 
         )
         
         yt_run_btn.click(
@@ -846,10 +1173,26 @@ def create_demo():
             outputs=[clean_output]
         )
         
+        clean_folder_btn.click(
+            fn=open_cleaner_folder,
+            outputs=None
+        )
+        
         transcribe_btn.click(
             fn=transcribe_audio_ui,
             inputs=[transcribe_audio_input, transcribe_model_size, transcribe_use_normalizer, transcribe_single_paragraph, transcribe_lang],
             outputs=[transcribe_output]
+        )
+        
+        diarize_btn.click(
+            fn=diarization_audio_ui, 
+            inputs=[audio_input, trim_toggle, gap_input, min_s, max_s], 
+            outputs=[first_speaker_audio, file_output]
+        )
+        
+        dia_folder_btn.click(
+            fn=open_diarization_folder,
+            outputs=None
         )
         
         namer_btn.click(
