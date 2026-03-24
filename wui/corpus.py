@@ -24,6 +24,7 @@ from demucs.apply import apply_model
 from core import core
 from core.core import _
 from core.database import SQLiteManager
+from core.spice import SentencePieceTrainerWrapper
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
 
 # --- HELPER FUNCTIONS ---
@@ -296,32 +297,34 @@ def train_tokenizer(vocab_size, model_prefix):
         full_prefix_path = os.path.join(core.corpus_directory(), model_prefix)
         
         def sqlite_text_generator():
-            # Now we fetch directly from the pre-cleaned table
+            # Fetch directly from the pre-cleaned table
             records = db.fetch_all("SELECT text, occurrence_count FROM normalized_chunks")
             valid_chunks_yielded = 0
             
             for row in records:
-                # We yield the chunk ONLY ONCE to completely strip repeating spam weight, 
+                # Yield the chunk ONLY ONCE to completely strip repeating spam weight, 
                 # strictly enforcing a flat uniqueness for the tokenizer.
                 yield row["text"]
                 valid_chunks_yielded += 1
                         
             if valid_chunks_yielded == 0:
                 raise RuntimeError("The text stream is empty. Please run the Normalizer step first.")
-                        
-        spm.SentencePieceTrainer.train(
-            sentence_iterator=sqlite_text_generator(),
-            model_prefix=full_prefix_path,
+        
+        # 1. Initialize ITTS SentencePiece Trainer Wrapper
+        trainer = SentencePieceTrainerWrapper(
             vocab_size=int(vocab_size),
             model_type="bpe",
-            character_coverage=0.9995,
-            hard_vocab_limit=False,
-            pad_id=0,
-            unk_id=1,
-            bos_id=2,
-            eos_id=3
+            hard_vocab_limit=False
         )
-        return f"✅ Tokenizer '{model_prefix}.model' built successfully with vocab size {int(vocab_size)}!"
+        
+        # 2. Execute training using the Python Generator (Streaming Mode)
+        log_output = trainer.train(
+            model_prefix=full_prefix_path,
+            sentence_iterator=sqlite_text_generator()
+        )
+        
+        return f"✅ Tokenizer '{model_prefix}.model' built successfully!\n\n--- EXECUTION LOG ---\n{log_output}"
+        
     except Exception as e:
         return f"❌ Error training tokenizer: {e}"
 
@@ -481,6 +484,16 @@ def process_and_add_workspace_files(lang_code, chunk_size, progress=gr.Progress(
         ui_logs.append(f"❌ Database Error: {str(e)}")
         
     return "\n".join(ui_logs)
+    
+def open_tokenizer_folder():
+    """Opens the project's tokenizer directory in the system file explorer."""
+    folder_path = core.corpus_directory()
+
+    if not os.path.exists(folder_path):
+        return "Folder does not exist."
+
+    os.startfile(folder_path)
+    return "Folder opened."
 
 def open_video_folder():
     folder_path = os.path.join(core.wui_outs, "video")
@@ -909,6 +922,9 @@ def create_demo():
                 with gr.Row():
                     tok_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_TOK_STATUS"), interactive=False, lines=2)
                 
+                with gr.Row():    
+                    tok_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))
+                
         gr.HTML("<div style='height:10px'></div>")
         
         # ==========
@@ -994,7 +1010,7 @@ def create_demo():
             
             yt_aud = gr.Audio(label=_("CORPUS_LABEL_PREVIEW"), type="filepath")
             
-            yt_folder_btn = gr.Button(_("CORPUS_BTN_OPEN_DIR"))
+            yt_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))
             
         # --- SECTION: AUDIO CLEANER ---
         with gr.Accordion(_("CORPUS_ACC_CLEANER"), open=False, elem_classes="wui-accordion"):    
@@ -1006,7 +1022,7 @@ def create_demo():
             
             clean_output = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=5)
             
-            clean_folder_btn = gr.Button(_("CORPUS_BTN_OPEN_DIR"))
+            clean_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))
            
         # --- SECTION: AUDIO TRANSCRIPTOR ---
         with gr.Accordion(_("CORPUS_ACC_WHISPER"), open=False, elem_classes="wui-accordion"):
@@ -1074,7 +1090,7 @@ def create_demo():
                     gr.Markdown(_("CORPUS_HEADER_DIA_FILES"))
                     first_speaker_audio = gr.Audio(label=_("CORPUS_LABEL_DIA_PREVIEW"), type="filepath", interactive=False)
                     file_output = gr.File(label=_("CORPUS_LABEL_DIA_DOWNLOAD"), file_count="multiple")
-                    dia_folder_btn = gr.Button(_("CORPUS_BTN_OPEN_DIR"))
+                    dia_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))
 
         # --- SECTION: DOCUMENT NAMER ---
         with gr.Accordion(_("CORPUS_ACC_NAMER"), open=False, elem_classes="wui-accordion"):
@@ -1136,6 +1152,12 @@ def create_demo():
         truncate_btn.click(fn=truncate_database, inputs=None, outputs=db_output_log)
         norm_btn.click(fn=normalize_database, inputs=[lang_input, worker_input_norm], outputs=norm_output_log)
         train_btn.click(fn=train_tokenizer, inputs=[vocab_input, prefix_input], outputs=tok_output_log)
+        
+        tok_folder_btn.click(
+            fn=open_tokenizer_folder,
+            inputs=None,
+            outputs=None
+        )
         
         # Tools
         save_btn.click(

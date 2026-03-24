@@ -14,6 +14,7 @@ from core import core
 from core.core import _
 from core import injection
 from indextts.utils.front import TextTokenizer
+from core.spice import SentencePieceTrainerWrapper
 from core.spice import GenericSpiceTokenizer
 from core.spice import JsonToModelConverter
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
@@ -114,6 +115,8 @@ def train_tokenizer_ui(
     char_coverage,
     include_corpus,
     special_tokens_str,
+    style_chk,
+    emotion_chk,
     tr_spec_chk,
     tr_seng_chk, 
     tr_turk_chk,    
@@ -261,10 +264,10 @@ def train_tokenizer_ui(
     # 7. Parse Special Tokens
     user_symbols = []
    
-    if lang.upper() == "EN":
-        tr_lang = ["▁[TR]", "▁[EN]"]
+    if lang == "en":
+        tr_lang = ["▁[tr]", "▁[en]"]
     else:
-        tr_lang = [f"▁[{lang.upper()}]", "▁[EN]"]   
+        tr_lang = [f"▁[{lang}]", "▁[en]"]   
     
     tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
     
@@ -279,7 +282,7 @@ def train_tokenizer_ui(
     for tag in tr_lang:
         if tag not in user_symbols:
             user_symbols.append(tag)
-            
+                       
     if tr_spec_chk:
         for tag in tr_spec:
             if tag not in user_symbols:
@@ -359,49 +362,52 @@ def train_tokenizer_ui(
         "[fast]", "[slow]"
     ]
     
-    for tag in style_tags:
-        if tag not in user_symbols:
-            user_symbols.append(tag)
-            
-    yield log(f"🎭 Added {len(style_tags)} Style Tags to Tokenizer")
+    if style_chk:
+        for tag in style_tags:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+                
+        yield log(f"🎭 Added {len(style_tags)} Style Tags to Tokenizer")
     
-    for tag in emotion_tags:
-        if tag not in user_symbols:
-            user_symbols.append(tag)
-            
-    yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
+    if emotion_chk:
+        for tag in emotion_tags:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+                
+        yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
 
-    # 9. Save Temp Corpus
-    temp_corpus = os.path.join(out_dir, "temp_train.txt")
-    with open(temp_corpus, "w", encoding="utf-8") as f:
-        for line in train_data:
-            f.write(line + "\n")
+    # 9. Apply Casing
+    if case_rule == "uppercase":
+        user_symbols = [sym.upper() for sym in user_symbols]
+        yield log(f"🔠 Converted {len(user_symbols)} Special Tokens to uppercase")
+
+    # 10. Stream Directly from RAM (Bypassing Disk I/O)
+    yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     
-    # 10. Train SentencePiece
+    # 11. Train SentencePiece
     yield log(f"🧠 Training BPE Tokenizer (Vocab: {vocab_size}, Coverage: {char_coverage})...")
         
     try:
-        spm.SentencePieceTrainer.train(
-            input=temp_corpus,
-            model_prefix=model_prefix,
+        # 1. Initialize Trainer
+        trainer = SentencePieceTrainerWrapper(
             vocab_size=int(vocab_size),
-            character_coverage=float(char_coverage),
             model_type="bpe",
-            byte_fallback=False,
+            character_coverage=float(char_coverage),
+            normalization_rule_name="identity" if norm_rule == "none" else norm_rule,
+            user_defined_symbols=",".join(user_symbols),
             split_digits=True,
             hard_vocab_limit=False,
-            normalization_rule_name="identity" if norm_rule == "none" else norm_rule,
-            bos_id=0,
-            eos_id=1,
-            unk_id=2,
-            pad_id=-1,
-            train_extremely_large_corpus=True,
-            input_sentence_size=0,
-            shuffle_input_sentence=True,
-            user_defined_symbols=user_symbols
+            train_extremely_large_corpus=True
         )
-        yield log(f"✅ Tokenizer saved to: {model_prefix}.model")
-        yield log(f"📄 Vocab saved to: {model_prefix}.vocab")
+        
+        # 2. Execute training using the Iterator
+        wrapper_logs = trainer.train(
+            model_prefix=model_prefix,
+            sentence_iterator=iter(train_data)
+        )
+        
+        # 3. Yield the structured logs back to the Gradio UI
+        yield log(f"\n--- WRAPPER EXECUTION LOG ---\n{wrapper_logs}")
     
     except Exception as e:
         yield log(f"❌ Training Failed: {e}")
@@ -413,6 +419,9 @@ def turkish_tokenizer_safety_check(model_file, case_rule="lowercase", tokenizer_
     
     if model_file is None:
         return "❌ No tokenizer uploaded."
+        
+    if hasattr(model_file, "name"):
+        model_file = model_file.name
 
     try:
         if tokenizer_type == "itts-tr":
@@ -1140,6 +1149,15 @@ def process_design_vocab(
         
     except Exception as e:
         return "", "", "", f"❌ Execution Failed: {str(e)}"
+              
+def open_tokenizer_folder():
+    folder_path = core.tokenizer_directory()
+
+    if not os.path.exists(folder_path):
+        return "Folder does not exist."
+
+    os.startfile(folder_path)
+    return "Folder opened."
         
 # ======================================================
 # UI CREATION
@@ -1194,6 +1212,11 @@ def create_demo():
                     value="",
                     placeholder="€ | £ | ¥ | ₺ | ₿ | ± | × | ÷ | ≠ | ≤ | ≥ | ∞ | √ | ∑ | ∏ | π | ∆ | ∂ | µ | Ω"
                 )
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_EMOTIONS"))
+                style_chk = gr.Checkbox(label=_("TOKENIZER_CHK_STYLE"), value=False)
+                emotion_chk = gr.Checkbox(label=_("TOKENIZER_CHK_EMOTION"), value=False)
                 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_TR_SPECIAL"))
@@ -1274,8 +1297,11 @@ def create_demo():
                 
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
-            with gr.Column():
+            with gr.Row():
                 log_box = gr.Textbox(label=_("TOKENIZER_LABEL_LOGS"), lines=5, max_lines=15)
+                
+            with gr.Row():    
+                tok_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))
 
         # --- EVENTS ---
         
@@ -1299,6 +1325,8 @@ def create_demo():
             char_coverage_slider, 
             include_corpus_chk, 
             special_input,
+            style_chk,             
+            emotion_chk,           
             tr_spec_chk,           
             tr_seng_chk,
             tr_turk_chk,
@@ -1311,7 +1339,7 @@ def create_demo():
             multiplier_slider,
             deduplicate_chk
         ]
-        
+       
         # Train Click
         train_btn.click(
             fn=train_tokenizer_ui,
@@ -1324,6 +1352,13 @@ def create_demo():
             fn=lambda l: gr.Dropdown(choices=list_datasets(l)),
             inputs=[lang_dd],
             outputs=[dataset_dd]
+        )
+        
+        # Folder Click
+        tok_folder_btn.click(
+            fn=open_tokenizer_folder,
+            inputs=[],
+            outputs=[]
         )
                   
         gr.HTML("<div style='height:10px'></div>")

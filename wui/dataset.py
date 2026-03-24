@@ -17,7 +17,6 @@ from core import core
 from core.core import _
 from core.normalizer import MultilingualNormalizer
 
-# Helper for Sample Rate Mapping
 SR_MAP = {
     "16Khz": 16000,
     "22Khz": 22050,
@@ -37,9 +36,9 @@ def handle_resume(current_logs):
 def get_fleurs_subset(lang_code):
 
     fleurs_mapping = {
-        "tr": "tr_tr",      # Turkish (Turkey)
-        "en": "en_us",      # English (United States)
-        "es": "es_419"      # Spanish (Latin America)
+        "tr": "tr_tr",      # Turkish
+        "en": "en_us",      # English
+        "es": "es_419"      # Spanish
     }
     
     return fleurs_mapping.get(lang_code.lower(), lang_code.lower())
@@ -188,7 +187,7 @@ def process_dataset_ui(dataset_id, output_folder_name, resample_sr, lang, save_e
 # METHOD 2: WHISPER LONG AUDIO SLICER
 # ======================================================
 
-def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lang, save_every, max_clip_seconds):
+def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lang, save_every, max_clip_seconds, whisper_model_size, cpu_workers):
     logs = []
     total_segments = 0
 
@@ -245,6 +244,10 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     try:
+        # Explicitly set CPU threading to prevent thrashing and stabilize speed
+        torch.set_num_threads(int(cpu_workers))
+        yield log(f"⚙️ CPU Workers allocated: {int(cpu_workers)}")
+        
         yield log("🧬 Initializing Pipeline...")
         pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=HF_TOKEN)
         pipeline.to(device)
@@ -252,8 +255,8 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
         yield log("🎙️ Running VAD...")
         diarization = pipeline(audio_file)
         
-        yield log("🧠 Loading Whisper...")
-        model = whisper.load_model("large-v3", device=device)
+        yield log(f"🧠 Loading Whisper ({whisper_model_size})...")
+        model = whisper.load_model(whisper_model_size, device=device)
         
         full_audio = AudioSegment.from_file(audio_file)
         orig_sr = full_audio.frame_rate
@@ -306,10 +309,11 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
             for sub_audio, sub_text in clips_to_save:
                 if len(sub_audio) < 500 or len(sub_text) < 2: continue
                 
+                # Safely find the next available filename index without dropping the clip
                 final_filename = f"audio_{global_clip_index:06d}.wav"
-                if final_filename in processed_files:
-                    global_clip_index += 1 
-                    continue 
+                while final_filename in processed_files:
+                    global_clip_index += 1
+                    final_filename = f"audio_{global_clip_index:06d}.wav"
                 
                 if target_sr and orig_sr != target_sr:
                     yield log(f"🔄 Resampling {final_filename}: {orig_sr}Hz -> {target_sr}Hz", current_idx=curr_step)
@@ -416,14 +420,30 @@ def create_demo():
             with gr.Row():
                 wx_out_name = gr.Textbox(label=_("DATASET_LABEL_TARGET_DIR"), value="my_custom_dataset")
                 wx_lang = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=lang_options, value="tr")
+                wx_whisper_model = gr.Dropdown(
+                    label="Whisper Model", 
+                    choices=["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3"], 
+                    value="large-v3"
+                )
+                
+            with gr.Row():
                 wx_sr = gr.Dropdown(label=_("DATASET_LABEL_RESAMPLE"), choices=sr_options, value="None")
                 wx_save_every = gr.Number(label=_("DATASET_LABEL_SAVE_EVERY"), value=100, precision=0)
                 wx_max_dur = gr.Number(label=_("DATASET_LABEL_MAX_DUR"), value=15)
                 
             with gr.Row():
-                wx_btn = gr.Button(_("COMMON_BTN_START"), variant="primary")
+                wx_cpu_workers = gr.Slider(
+                    label=_("COMMON_CPU_WORKERS"),  
+                    minimum=1, 
+                    maximum=os.cpu_count(), 
+                    value=max(1, os.cpu_count() // 2), 
+                    step=1
+                )
+                
+            with gr.Row():
+                wx_btn = gr.Button(_("COMMON_BTN_START"), variant="primary", elem_classes="wui-button-green")
                 wx_stop = gr.Button(_("COMMON_BTN_STOP"), variant="stop")
-                wx_resume = gr.Button(_("COMMON_BTN_RESUME"))
+                wx_resume = gr.Button(_("COMMON_BTN_RESUME"), elem_classes="wui-button-blue")
                 
             with gr.Column():
                 wx_status = gr.Textbox(label=_("DATASET_LABEL_STATUS"), lines=1, interactive=False)
@@ -431,7 +451,7 @@ def create_demo():
             
             wx_event = wx_btn.click(
                 process_long_audio_ui, 
-                inputs=[audio_input, wx_out_name, gr.State(16), wx_sr, wx_lang, wx_save_every, wx_max_dur], 
+                inputs=[audio_input, wx_out_name, gr.State(16), wx_sr, wx_lang, wx_save_every, wx_max_dur, wx_whisper_model, wx_cpu_workers], 
                 outputs=[wx_status, wx_logs],
                 show_progress="hidden"
             )
@@ -441,7 +461,7 @@ def create_demo():
                 outputs=[wx_status, wx_logs]
             ).then(
                 fn=process_long_audio_ui, 
-                inputs=[audio_input, wx_out_name, gr.State(16), wx_sr, wx_lang, wx_save_every, wx_max_dur], 
+                inputs=[audio_input, wx_out_name, gr.State(16), wx_sr, wx_lang, wx_save_every, wx_max_dur, wx_whisper_model, wx_cpu_workers], 
                 outputs=[wx_status, wx_logs],
                 show_progress="hidden"
             )
