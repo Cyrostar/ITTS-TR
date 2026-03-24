@@ -29,6 +29,8 @@
 		"COMMON_BTN_STOP": "🛑 Durdur",
 		"COMMON_BTN_RESUME": "♻️ Sürdür",
 		"COMMON_STATUS_READY": "Hazır",
+		"COMMON_FOLDER_OPEN": "📂 Çıktı Klasörünü Aç",
+		"COMMON_CPU_WORKERS": "⚙️ CPU Çekirdekleri (İşçiler)",
 		
 	"section_home": "--- Ana Sayfa (main.py) ---",
 	
@@ -125,7 +127,7 @@
 			
 		"CORPUS_HEADER_UTILS": "## 🧰 ARAÇLAR",
 		
-		"CORPUS_HEADER_ADD": "📘 ÇALIŞMA ALANıNA DOSYA EKLE",
+		"CORPUS_HEADER_ADD": "📘 ÇALIŞMA ALANINA DOSYA EKLE",
 		"CORPUS_DESC_ADD": "PDF veya Metin dosyaları yükleyin (Toplu Yükleme Desteklenir).",
 		"CORPUS_LABEL_NAME": "Derlem Dosya Adı (İsteğe Bağlı)",
 		"CORPUS_PLACEHOLDER_NAME": "Dosyayı yeniden adlandırın (Yalnızca tek dosya yüklemesinde çalışır)",
@@ -278,6 +280,10 @@
 		"TOKENIZER_BTN_REFRESH": "🔄 Listeyi Yenile",
 		"TOKENIZER_SLIDER_VOCAB": "Sözlük Boyutu",
 		"TOKENIZER_LABEL_SPECIAL": "Özel Tokenlar",
+		
+		"TOKENIZER_HEADER_EMOTIONS": "### Tema ve Duygu Belirteçleri",
+		"TOKENIZER_CHK_STYLE": "Tema belirteçlerini dahil et ([narrative], [podcast])",
+		"TOKENIZER_CHK_EMOTION": "Duygu belirteçlerini dahil et ([happy], [suprised])",
 		
 		"TOKENIZER_HEADER_TR_SPECIAL": "### Türkçe Özel Karakterler",
 		"TOKENIZER_CHK_TR_SPEC": "Türkçe karakterleri dahil et (ç, ğ, ö, ş, ü)",

@@ -29,6 +29,8 @@
 		"COMMON_BTN_STOP": "🛑 Detener",
 		"COMMON_BTN_RESUME": "♻️ Reanudar",
 		"COMMON_STATUS_READY": "Listo",
+		"COMMON_FOLDER_OPEN": "📂 Abrir carpeta de salida",
+		"COMMON_CPU_WORKERS": "⚙️ Núcleos de CPU (Trabajadores)",
 		
 	"section_home": "--- Pestaña de Inicio (main.py) ---",
 	
@@ -278,6 +280,10 @@
 		"TOKENIZER_BTN_REFRESH": "🔄 Actualizar Lista",
 		"TOKENIZER_SLIDER_VOCAB": "Tamaño del Vocabulario",
 		"TOKENIZER_LABEL_SPECIAL": "Tokens Especiales",
+		
+		"TOKENIZER_HEADER_EMOTIONS": "### Marcadores de Tema y Emoción",
+		"TOKENIZER_CHK_STYLE": "Incluir marcadores de tema ([narrative], [podcast])",
+		"TOKENIZER_CHK_EMOTION": "Incluir marcadores de emoción ([happy], [suprised])",
 		
 		"TOKENIZER_HEADER_TR_SPECIAL": "### Tokens Especiales (Turco)",
 		"TOKENIZER_CHK_TR_SPEC": "Incluir caracteres turcos (ç, ğ, ö, ş, ü)",
