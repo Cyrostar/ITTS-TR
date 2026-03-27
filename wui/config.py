@@ -199,6 +199,9 @@ def save_config_ui(
 # ======================================================
 
 def create_demo():
+    
+    lang_options = core.language_list()
+    
     with gr.Blocks() as demo:
         gr.Markdown(_("CONFIG_HEADER"))
         gr.Markdown(_("CONFIG_DESC"))
@@ -230,7 +233,7 @@ def create_demo():
             
             with gr.Tab(_("CONFIG_TAB_TOKENIZER")):
                 with gr.Row():
-                    language = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=["en", "tr"], value="en")
+                    language = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=lang_options, value="tr")
                     tokenizer_type = gr.Dropdown(label=_("CONFIG_LABEL_TOK_TYPE"), choices=["indextts", "itts-tr"], value="indextts")
                     vocab_type = gr.Dropdown(label=_("CONFIG_LABEL_VOCAB_TYPE"), choices=["trained", "merged"], value="trained")
                     case_format = gr.Dropdown(label=_("CONFIG_LABEL_CASE_FORMAT"), choices=["uppercase", "lowercase"], value="uppercase")

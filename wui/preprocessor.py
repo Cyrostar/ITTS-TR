@@ -267,8 +267,7 @@ def run_preprocessing_ui(
         add_lang_id, selected_lang_id = False, -1
     else:
         add_lang_id = True
-        lang_map = {"TR (ID-3)": 3, "EN (ID-4)": 4}
-        selected_lang_id = lang_map.get(lang_id, 3)
+        selected_lang_id = core.language_id(lang_id)
         
     config_path, cfg_msg = ensure_config_exists()
     yield log(cfg_msg), ""
@@ -534,7 +533,7 @@ def create_demo():
                 with gr.Row():     
                     lang_dd = gr.Dropdown(
                         label=_("PREPROCESSOR_LABEL_LANG_ID"), 
-                        choices=["None", "TR (ID-3)", "EN (ID-4)"], 
+                        choices=["None"] + lang_options, 
                         value="None",
                         show_label=False,
                         scale=1,

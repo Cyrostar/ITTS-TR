@@ -62,22 +62,22 @@ def init_db():
     """Ensures the db folder exists and initializes relational SQLite tables."""
     db = get_db()
     
-    # 1. Parent Table: Tracks processed PDFs with a unique ID
+    # 1. Parent Table: Tracks processed PDFs & their source language
     db.create_table(
         "processed_pdfs", 
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, pdf_name TEXT UNIQUE"
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, pdf_name TEXT UNIQUE, lang TEXT"
     )
     
-    # 2. Child Table: Stores raw text chunks
+    # 2. Child Table: Original schema + the new flag + lang marker
     db.create_table(
         "pdf_chunks", 
-        "pdf_id INTEGER, page_number INTEGER, text TEXT, FOREIGN KEY(pdf_id) REFERENCES processed_pdfs(id)"
+        "pdf_id INTEGER, page_number INTEGER, text TEXT, lang TEXT, is_normalized INTEGER DEFAULT 0, FOREIGN KEY(pdf_id) REFERENCES processed_pdfs(id)"
     )
-    
-    # 3. Normalized Table: Stores unique cleaned chunks and their occurrence count
+        
+    # 3. Normalized Table: Tracks chunks by unique Text AND Language pair
     db.create_table(
         "normalized_chunks",
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT UNIQUE, occurrence_count INTEGER DEFAULT 1"
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, lang TEXT, occurrence_count INTEGER DEFAULT 1, UNIQUE(text, lang)"
     )
     return db
 
@@ -137,7 +137,7 @@ def _normalize_worker(args):
                 
     return dict(local_counts) # Return as standard dictionary to pass back to main thread
 
-def process_pdfs(folder_path, chunk_size, max_workers, progress=gr.Progress()):
+def process_pdfs(folder_path, lang_input, chunk_size, max_workers, progress=gr.Progress()):
     """Iterates through PDFs, processes them in parallel across CPU cores, and saves to SQLite."""
     if not folder_path or not os.path.exists(folder_path):
         return "❌ Error: The specified folder does not exist."
@@ -186,11 +186,17 @@ def process_pdfs(folder_path, chunk_size, max_workers, progress=gr.Progress()):
                 _, success, result = future.result()
                 
                 if success:
-                    db.execute_write("INSERT INTO processed_pdfs (pdf_name) VALUES (?)", (pdf_file,))
+                    db.execute_write("INSERT INTO processed_pdfs (pdf_name, lang) VALUES (?, ?)", (pdf_file, lang_input))
                     pdf_record = db.fetch_one("SELECT id FROM processed_pdfs WHERE pdf_name = ?", (pdf_file,))
                     pdf_id = pdf_record["id"]
                     
-                    db_ready_chunks = [(pdf_id, page_num, chunk) for page_num, chunk in result]
+                    db_ready_chunks = [(pdf_id, page_num, chunk, lang_input) for page_num, chunk in result]
+                    
+                    if db_ready_chunks:
+                        db.execute_many(
+                            "INSERT INTO pdf_chunks (pdf_id, page_number, text, lang) VALUES (?, ?, ?, ?)",
+                            db_ready_chunks
+                        )
                     
                     if db_ready_chunks:
                         db.execute_many(
@@ -213,64 +219,81 @@ def process_pdfs(folder_path, chunk_size, max_workers, progress=gr.Progress()):
     return final_status
 
 def normalize_database(lang_code, max_workers, progress=gr.Progress()):
-    """Reads raw chunks, normalizes them in parallel, aggregates duplicates, and saves."""
+    """Reads unnormalized chunks using B-Tree pagination, processes via a persistent CPU pool, and commits incrementally."""
     try:
         db = init_db()
        
-        count_record = db.fetch_one("SELECT COUNT(*) as total FROM pdf_chunks WHERE text IS NOT NULL")
-        total_rows = count_record["total"] if count_record else 0
+        count_record = db.fetch_one("SELECT COUNT(*) as total FROM pdf_chunks WHERE text IS NOT NULL AND is_normalized = 0")
+        total_remaining = count_record["total"] if count_record else 0
         
-        if total_rows == 0:
-            return "⚠️ No raw chunks found. Please process PDFs first."
+        if total_remaining == 0:
+            return "✅ All chunks are already normalized! No new text to process."
             
-        progress(0, desc="Loading raw chunks from database into RAM...")
-        records = db.fetch_all("SELECT text FROM pdf_chunks WHERE text IS NOT NULL")
-        
-        # Extract just the text strings to reduce memory overhead
-        raw_texts = [row["text"] for row in records]
-        
-        # Determine chunk size to split the work among CPU cores
         safe_workers = max(1, int(max_workers))
-        chunk_size = 50000 
-        batches = [(lang_code, raw_texts[i:i + chunk_size]) for i in range(0, len(raw_texts), chunk_size)]
+        db_batch_size = 50000 
+        worker_chunk_size = 10000
         
-        # Free up the massive raw list from RAM
-        del records
-        del raw_texts 
-        
-        global_counts = defaultdict(int)
-        
-        with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
-            futures = {executor.submit(_normalize_worker, batch): batch for batch in batches}
-            
-            for future in progress.tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Normalizing across CPU cores..."):
-                try:
-                    local_counts = future.result()
-                    # Safely merge the worker's local dictionary into the global dictionary
-                    for text, count in local_counts.items():
-                        global_counts[text] += count
-                except Exception as e:
-                    print(f"⚠️ Worker error skipped: {e}")
-                    
-        progress(0.95, desc="Writing unique deduplicated chunks back to SQLite...")
-        
-        insert_data = [(text, count) for text, count in global_counts.items()]
-        if not insert_data:
-            return "❌ Normalization resulted in 0 valid chunks."
-
-        batch_size = 50000
+        total_processed = 0
         total_inserted = 0
+        last_rowid = 0
         
-        for i in range(0, len(insert_data), batch_size):
-            batch = insert_data[i:i + batch_size]
-            db.execute_many(
-                "INSERT INTO normalized_chunks (text, occurrence_count) VALUES (?, ?)",
-                batch
-            )
-            total_inserted += len(batch)
+        progress(0, desc="Starting fault-tolerant batch normalization...")
+        
+        # ⚡ ARCHITECTURAL FIX: Keep the OS process pool open for the entire duration of the task
+        with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
             
-        progress(1.0, desc="Normalization Complete!")
-        return f"✅ Parallel Normalization complete! {total_rows:,} raw chunks reduced to {total_inserted:,} unique clean chunks."
+            while True:
+                # 1. Fetch using B-Tree pagination (teleports past completed rows)
+                records = db.fetch_all(f"SELECT rowid as id, text FROM pdf_chunks WHERE rowid > {last_rowid} AND text IS NOT NULL AND is_normalized = 0 LIMIT {db_batch_size}")
+                
+                if not records:
+                    break
+                    
+                last_rowid = records[-1]["id"]
+                chunk_ids = [row["id"] for row in records]
+                raw_texts = [row["text"] for row in records]
+                
+                # 2. Split into smaller batches for the persistent CPU workers
+                batches = [(lang_code, raw_texts[i:i + worker_chunk_size]) for i in range(0, len(raw_texts), worker_chunk_size)]
+                
+                del records
+                del raw_texts
+                
+                batch_counts = defaultdict(int)
+                
+                # 3. Dispatch to the ALREADY RUNNING worker pool
+                futures = [executor.submit(_normalize_worker, b) for b in batches]
+                del batches
+                
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        local_counts = future.result()
+                        for text, count in local_counts.items():
+                            batch_counts[text] += count
+                    except Exception as e:
+                        print(f"⚠️ Worker error skipped: {e}")
+                            
+                # 4. UPSERT the normalized results directly into the database
+                if batch_counts:
+                    insert_data = [(text, lang_code, count) for text, count in batch_counts.items()]
+                    upsert_query = """
+                        INSERT INTO normalized_chunks (text, lang, occurrence_count) 
+                        VALUES (?, ?, ?) 
+                        ON CONFLICT(text, lang) DO UPDATE SET 
+                        occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
+                    """
+                    for i in range(0, len(insert_data), 10000):
+                        db.execute_many(upsert_query, insert_data[i:i + 10000])
+                    total_inserted += len(insert_data)
+                    
+                # 5. Checkpoint: Mark this specific block as normalized
+                update_data = [(cid,) for cid in chunk_ids]
+                db.execute_many("UPDATE pdf_chunks SET is_normalized = 1 WHERE rowid = ?", update_data)
+                
+                total_processed += len(chunk_ids)
+                progress(total_processed / total_remaining, desc=f"Normalized {total_processed}/{total_remaining} chunks...")
+            
+        return f"✅ Normalization complete! Safely processed {total_processed:,} raw chunks."
         
     except Exception as e:
         return f"❌ Error during normalization: {e}"
@@ -290,40 +313,58 @@ def truncate_database():
     except Exception as e:
         return f"❌ Error during truncation: {e}"
 
-def train_tokenizer(vocab_size, model_prefix):
-    """Trains SentencePiece from the pre-normalized unique text chunks."""
+def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_sentences, train_extremely, norm_rule, hard_vocab, progress=gr.Progress()):
+    """Trains SentencePiece from the pre-normalized unique text chunks for a specific language."""
+    if not lang_code:
+        return "❌ Error: No language specified for the Tokenizer."
+        
     try:
         db = get_db()
         full_prefix_path = os.path.join(core.corpus_directory(), model_prefix)
         
-        def sqlite_text_generator():
-            # Fetch directly from the pre-cleaned table
-            records = db.fetch_all("SELECT text, occurrence_count FROM normalized_chunks")
-            valid_chunks_yielded = 0
-            
-            for row in records:
-                # Yield the chunk ONLY ONCE to completely strip repeating spam weight, 
-                # strictly enforcing a flat uniqueness for the tokenizer.
-                yield row["text"]
-                valid_chunks_yielded += 1
-                        
-            if valid_chunks_yielded == 0:
-                raise RuntimeError("The text stream is empty. Please run the Normalizer step first.")
+        # PRE-FLIGHT CHECK: Fetch directly from the pre-cleaned table, FILTERED BY LANGUAGE
+        records = db.fetch_all("SELECT text FROM normalized_chunks WHERE lang = ?", (lang_code,))
+        
+        if not records:
+            return f"❌ Error: Database contains no normalized text chunks for language '{lang_code}'. Run the Normalizer first."
+        
+        # Convert to a flat list in memory to completely prevent Python Generator Exhaustion bugs
+        text_stream = [row["text"] for row in records if row["text"] and row["text"].strip()]
+        
+        if not text_stream:
+            return f"❌ Error: The extracted text stream is totally empty after formatting."
         
         # 1. Initialize ITTS SentencePiece Trainer Wrapper
         trainer = SentencePieceTrainerWrapper(
             vocab_size=int(vocab_size),
             model_type="bpe",
-            hard_vocab_limit=False
+            hard_vocab_limit=bool(hard_vocab),
+            normalization_rule_name=norm_rule,                  # Bypass SPM's internal normalizer ("identity")
+            train_extremely_large_corpus=bool(train_extremely), # Activate C++ memory optimizations
+            input_sentence_size=int(sentence_size),             # Randomly sample X million chunks
+            shuffle_input_sentence=bool(shuffle_sentences)      # Ensure a uniform linguistic distribution
         )
         
-        # 2. Execute training using the Python Generator (Streaming Mode)
+        progress(0.5, desc="Executing C++ SPM Training (This will take a while)...")
+
+        # 2. Execute training using a materialized iterator
         log_output = trainer.train(
             model_prefix=full_prefix_path,
-            sentence_iterator=sqlite_text_generator()
+            sentence_iterator=iter(text_stream)
         )
         
-        return f"✅ Tokenizer '{model_prefix}.model' built successfully!\n\n--- EXECUTION LOG ---\n{log_output}"
+        progress(0.9, desc="Cleaning up temporary files...")
+        
+        import gc
+        gc.collect()
+               
+        # 4. Prevent False-Positive Success Messages
+        if "Failed" in log_output or "❌" in log_output or "Exception" in log_output:
+            return f"⚠️ Tokenizer Training Failed!\n\n--- EXECUTION LOG ---\n{log_output}"
+        
+        progress(1.0, desc="Training Complete!")
+        
+        return f"✅ Tokenizer '{model_prefix}.model' built successfully for language '{lang_code}'!\n\n--- EXECUTION LOG ---\n{log_output}"
         
     except Exception as e:
         return f"❌ Error training tokenizer: {e}"
@@ -461,13 +502,13 @@ def process_and_add_workspace_files(lang_code, chunk_size, progress=gr.Progress(
     progress(0.9, desc="Saving directly to database...")
     ui_logs.append(f"✨ Extracted {len(local_counts)} unique normalized chunks. Upserting to database...")
     
-    insert_data = [(text, count) for text, count in local_counts.items()]
+    insert_data = [(text, lang_code, count) for text, count in local_counts.items()]
     
-    # Use UPSERT to elegantly aggregate duplicates if the text is already in the DB table
+    # Use UPSERT to elegantly aggregate duplicates based on the (text, lang) UNIQUE constraint
     upsert_query = """
-        INSERT INTO normalized_chunks (text, occurrence_count) 
-        VALUES (?, ?) 
-        ON CONFLICT(text) DO UPDATE SET 
+        INSERT INTO normalized_chunks (text, lang, occurrence_count) 
+        VALUES (?, ?, ?) 
+        ON CONFLICT(text, lang) DO UPDATE SET 
         occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
     """
     
@@ -866,6 +907,11 @@ def create_demo():
                         placeholder=_("CORPUS_DB_PLACEHOLDER_FOLDER"),
                         scale=3
                     )
+                    lang_input = gr.Dropdown(
+                        label=_("CORPUS_DB_LABEL_LANG_PIPE"), 
+                        choices=lang_options,
+                        value="tr"
+                    )
                     chunk_input = gr.Number(
                         label=_("CORPUS_DB_LABEL_CHUNK"), 
                         value=10, 
@@ -893,15 +939,14 @@ def create_demo():
                 gr.Markdown(_("CORPUS_DB_DESC_NORM"))
                 
                 with gr.Row():
-                    lang_input = gr.Dropdown(label=_("CORPUS_DB_LABEL_LANG_PIPE"), choices=["tr", "en", "es"], value="tr")
                     worker_input_norm = gr.Slider(
                         label=_("CORPUS_DB_LABEL_WORKERS"), 
                         minimum=1, 
                         maximum=multiprocessing.cpu_count(), 
                         value=max(1, multiprocessing.cpu_count() // 2), 
                         step=1
-                    )
-                
+                    ) 
+                    
                 with gr.Row():
                     norm_btn = gr.Button(_("CORPUS_DB_BTN_NORMALIZE"), variant="primary")
                     
@@ -913,8 +958,18 @@ def create_demo():
                 gr.Markdown(_("CORPUS_DB_DESC_TOK"))
                 
                 with gr.Row():
+                    tok_lang_input = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=lang_options, value="tr")
                     vocab_input = gr.Number(label=_("CORPUS_DB_LABEL_VOCAB"), value=8000, precision=0)
                     prefix_input = gr.Textbox(label=_("CORPUS_DB_LABEL_PREFIX"), value="itts_bpe")
+                    
+                with gr.Row():
+                    tok_sentence_size = gr.Number(label="Max Sentences (Sample Size)", value=5000000, precision=0, info="Limits RAM usage on massive datasets. Set to 0 to use all.")
+                    tok_norm_rule = gr.Dropdown(label="Normalization Rule", choices=["identity", "nmt_nfkc", "nfkc", "nfkc_cf"], value="identity", info="Bypass SPM normalizer with 'identity' if DB is pre-normalized.")
+                                       
+                with gr.Row():
+                    tok_train_ext = gr.Checkbox(label="Train Extremely Large Corpus", value=True, info="Activates C++ memory optimizations for multi-gigabyte files.")                   
+                    tok_shuffle = gr.Checkbox(label="Shuffle Corpus", value=True, info="Randomly sample to ensure vocabulary diversity.")
+                    tok_hard_vocab = gr.Checkbox(label="Hard Vocab Limit", value=False, info="Strictly enforce the requested vocabulary size without padding.")                    
                     
                 with gr.Row():
                     train_btn = gr.Button(_("CORPUS_DB_BTN_TRAIN"), variant="primary")
@@ -1148,10 +1203,14 @@ def create_demo():
         # ==========================================
         
         # Database Manager
-        process_btn.click(fn=process_pdfs, inputs=[folder_input, chunk_input, worker_input], outputs=db_output_log)
+        process_btn.click(fn=process_pdfs, inputs=[folder_input, lang_input, chunk_input, worker_input], outputs=db_output_log)
         truncate_btn.click(fn=truncate_database, inputs=None, outputs=db_output_log)
         norm_btn.click(fn=normalize_database, inputs=[lang_input, worker_input_norm], outputs=norm_output_log)
-        train_btn.click(fn=train_tokenizer, inputs=[vocab_input, prefix_input], outputs=tok_output_log)
+        train_btn.click(
+            fn=train_tokenizer, 
+            inputs=[vocab_input, prefix_input, tok_lang_input, tok_sentence_size, tok_shuffle, tok_train_ext, tok_norm_rule, tok_hard_vocab], 
+            outputs=tok_output_log
+        )
         
         tok_folder_btn.click(
             fn=open_tokenizer_folder,

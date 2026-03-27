@@ -35,7 +35,7 @@ class StandaloneTTS(IndexTTS2):
     """
     def __init__(self, gpt_file_name="gpt.pth", device=None, use_fp16=False, use_cuda_kernel=False, use_torch_compile=False):
         
-        self.ckpt_dir = core.wui_ckpt
+        self.ckpt_dir = os.path.join(core.wui_ckpt, "itts")
         # Default base model path for dependencies like bigvgan, s2mel, etc.
         self.model_dir = os.path.join(core.path_base, "indextts", "checkpoints") 
         
@@ -227,10 +227,11 @@ class StandaloneTTS(IndexTTS2):
 tts = None
 
 def get_wui_ckpt_models():
-    """Scans core.wui_ckpt for all available gpt.pth files."""
-    if not os.path.exists(core.wui_ckpt):
+    """Scans core.wui_ckpt/itts for all available gpt.pth files."""
+    target_dir = os.path.join(core.wui_ckpt, "itts")
+    if not os.path.exists(target_dir):
         return []
-    files = os.listdir(core.wui_ckpt)
+    files = os.listdir(target_dir)
     models = [f for f in files if f.endswith("gpt.pth")]
     return sorted(models)
 
@@ -285,7 +286,7 @@ def generate_speech_standalone(
 
     # Check if model needs reloading
     current_model_loaded = getattr(tts, 'gpt_path', "") if tts else ""
-    target_gpt_path = os.path.join(core.wui_ckpt, selected_model) if selected_model else ""
+    target_gpt_path = os.path.join(core.wui_ckpt, "itts", selected_model) if selected_model else ""
     
     current_kernel_setting = getattr(tts, 'use_cuda_kernel', False) if tts else False
     current_compile_setting = getattr(tts, 'use_torch_compile', False) if tts else False
@@ -318,7 +319,7 @@ def generate_speech_standalone(
             yield None, log_history + f"Error initializing model: {str(e)}"
             return
 
-    output_dir = os.path.join("outputs", "standalone")
+    output_dir = os.path.join("outputs", "tts")
     output_path = os.path.join(output_dir, f"gen_{int(time.time())}.wav")
     os.makedirs(output_dir, exist_ok=True)
 

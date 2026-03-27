@@ -48,15 +48,18 @@ def download_repo(repo_id, local_dir_name):
         target_files = ["bpe.model", "gpt.pth", "config.yaml"]
         copied_files = []
         
+        dest_dir = os.path.join(core.wui_ckpt, "itts")
+        os.makedirs(dest_dir, exist_ok=True)
+        
         for file_name in target_files:
             src_file = os.path.join(target_dir, file_name)
             if os.path.exists(src_file):
                 new_file_name = f"en_{file_name}"
-                dest_file = os.path.join(core.wui_ckpt, new_file_name)
+                dest_file = os.path.join(dest_dir, new_file_name)
                 shutil.copy2(src_file, dest_file)
                 copied_files.append(new_file_name)
         
-        copy_msg = f"\n📦 Copied to wui_ckpt: {', '.join(copied_files)}" if copied_files else ""
+        copy_msg = f"\n📦 Copied to wui_ckpt/itts: {', '.join(copied_files)}" if copied_files else ""
         
         return f"✅ Successfully downloaded '{repo_id}' to:\n{target_dir}{copy_msg}", list_files(local_dir_name)
         
@@ -65,7 +68,7 @@ def download_repo(repo_id, local_dir_name):
         
 def download_tr_weights():
     repo_id = "ruygar/itts_tr_lex"
-    target_dir = core.wui_ckpt
+    target_dir = os.path.join(core.wui_ckpt, "itts")
     
     try:
         os.makedirs(target_dir, exist_ok=True)
@@ -76,9 +79,9 @@ def download_tr_weights():
             local_dir_use_symlinks=False
         )
         
-        return f"✅ Successfully downloaded Turkish weights directly to:\n{target_dir}", list_files("wui/ckpt")
+        return f"✅ Successfully downloaded Turkish weights directly to:\n{target_dir}", list_files("ckpt/itts")
     except Exception as e:
-        return f"❌ Download Failed:\n{str(e)}", list_files("wui/ckpt")
+        return f"❌ Download Failed:\n{str(e)}", list_files("ckpt/itts")
 
 def download_to_global_cache(repo_id):
 
@@ -102,12 +105,11 @@ def download_url_to_root(url, filename):
         
 def download_whisper_model(model_id):
     
-    import whisper
-    
     whisper_dir = os.path.join(core.path_root, 'models', 'whisper')
     os.makedirs(whisper_dir, exist_ok=True)
       
     try:
+        import whisper
         whisper.load_model(
             model_id, 
             device="cpu",
@@ -115,6 +117,18 @@ def download_whisper_model(model_id):
         return f"✅ Whisper model '{model_id}' successfully downloaded to:\n{whisper_dir}"
     except Exception as e:
         return f"❌ Whisper Download Error: {str(e)}"
+        
+def download_rvc_prerequisites():
+    
+    rvc_dir = os.path.join(core.path_base, 'rvc')
+    os.makedirs(rvc_dir, exist_ok=True)
+    
+    try:
+        from rvc.core import run_prerequisites_script 
+        msg = run_prerequisites_script(pretraineds_hifigan=True, models=True, exe=False)
+        return f"✅ RVC prerequisites downloaded successfully: {msg}"
+    except Exception as e:
+        return f"❌ Download Failed: {str(e)}"
 
 def create_demo():
     
@@ -172,7 +186,18 @@ def create_demo():
             with gr.Row():
                 whisper_dl_btn = gr.Button(_("MODELS_BTN_DOWNLOAD_WHISPER"), variant="primary", scale=1)
 
-        # --- SECTION 4: Dependency Fixes (New) ---
+        # --- SECTION 4: Download RVC Prerequisites ---
+        gr.HTML("<div style='height:20px'></div>")
+        with gr.Group():
+            gr.Markdown(_("MODELS_SECTION_RVC"))
+            gr.Markdown(_("MODELS_DESC_RVC"))
+           
+            rvc_status_output = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=2, interactive=False)
+            
+            with gr.Row():
+                rvc_dl_btn = gr.Button(_("MODELS_BTN_DOWNLOAD_RVC"), variant="primary")
+                
+        # --- SECTION 5: Dependency Fixes (New) ---
         gr.HTML("<div style='height:20px'></div>")
         with gr.Group():
             gr.Markdown(_("MODELS_SECTION_DEPENDENCY"))
@@ -187,8 +212,8 @@ def create_demo():
                 pb2_btn = gr.Button(_("MODELS_BTN_DOWNLOAD_PB2"), variant="stop")
             
             pb2_status = gr.Textbox(label=_("MODELS_DEPENDENCY_STATUS"), lines=1)
-            
-        # --- SECTION 5: Download Turkish Weights ---
+                       
+        # --- SECTION 6: Download Turkish Weights ---
         gr.HTML("<div style='height:20px'></div>")
         with gr.Group():
             gr.Markdown(_("MODELS_SECTION_TR_WEIGHTS"))
@@ -224,6 +249,13 @@ def create_demo():
             fn=download_whisper_model, 
             inputs=[whisper_model_select], 
             outputs=[whisper_status]
+        )
+        
+        # RVC Prerequisites Download Handler
+        rvc_dl_btn.click(
+            fn=download_rvc_prerequisites,
+            inputs=[],
+            outputs=[rvc_status_output]
         )
         
         # Dependency Fix

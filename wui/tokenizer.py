@@ -128,6 +128,10 @@ def train_tokenizer_ui(
     inject_words,
     multiplier,
     deduplicate,
+    sentence_size,
+    train_extremely,
+    shuffle_sentences,
+    hard_vocab,
     progress=gr.Progress()
 ):
     logs = []
@@ -260,57 +264,16 @@ def train_tokenizer_ui(
     
     if not train_data:
         return log("❌ Error: No training data found!")
+    
+    # 7. Add Language Tags 
 
-    # 7. Parse Special Tokens
     user_symbols = []
-   
-    if lang == "en":
-        tr_lang = ["▁[tr]", "▁[en]"]
-    else:
-        tr_lang = [f"▁[{lang}]", "▁[en]"]   
     
-    tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
-    
-    tr_long = ["â", "▁â", "î", "▁î", "û", "▁û"]
-    
-    tr_seng = ["q", "▁q", "w", "▁w", "x", "▁x"]
-    
-    tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
-    
-    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁...", "\"", "▁\""]
-    
-    for tag in tr_lang:
+    lang_tags = [f"▁[{l}]" for l in core.language_list()]
+
+    for tag in lang_tags:
         if tag not in user_symbols:
-            user_symbols.append(tag)
-                       
-    if tr_spec_chk:
-        for tag in tr_spec:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-                
-    if tr_long_chk:
-        for tag in tr_long:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-                
-    if tr_seng_chk:
-        for tag in tr_seng:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-    
-    if tr_turk_chk:
-        for tag in tr_turk:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-                
-    if tr_punc_chk:
-        for tag in tr_punc:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-    
-    if special_tokens_str:
-        user_symbols.extend([x.strip() for x in special_tokens_str.split("|") if x.strip()])
-        yield log(f"✨ Found {len(user_symbols)} Special Tokens")
+            user_symbols.append(tag)        
         
     # 8. Add style and emotions
     
@@ -376,15 +339,56 @@ def train_tokenizer_ui(
                 
         yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
 
-    # 9. Apply Casing
+    # 9. Parse Special Tokens
+      
+    tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
+    
+    tr_long = ["â", "▁â", "î", "▁î", "û", "▁û"]
+    
+    tr_seng = ["q", "▁q", "w", "▁w", "x", "▁x"]
+    
+    tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
+    
+    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁...", "\"", "▁\""]
+                          
+    if tr_spec_chk:
+        for tag in tr_spec:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+                
+    if tr_long_chk:
+        for tag in tr_long:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+                
+    if tr_seng_chk:
+        for tag in tr_seng:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+    
+    if tr_turk_chk:
+        for tag in tr_turk:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+                
+    if tr_punc_chk:
+        for tag in tr_punc:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+    
+    if special_tokens_str:
+        user_symbols.extend([x.strip() for x in special_tokens_str.split("|") if x.strip()])
+        yield log(f"✨ Found {len(user_symbols)} Special Tokens")
+
+    # 10. Apply Casing
     if case_rule == "uppercase":
         user_symbols = [sym.upper() for sym in user_symbols]
         yield log(f"🔠 Converted {len(user_symbols)} Special Tokens to uppercase")
 
-    # 10. Stream Directly from RAM (Bypassing Disk I/O)
+    # 11. Stream Directly from RAM (Bypassing Disk I/O)
     yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     
-    # 11. Train SentencePiece
+    # 12. Train SentencePiece
     yield log(f"🧠 Training BPE Tokenizer (Vocab: {vocab_size}, Coverage: {char_coverage})...")
         
     try:
@@ -393,11 +397,13 @@ def train_tokenizer_ui(
             vocab_size=int(vocab_size),
             model_type="bpe",
             character_coverage=float(char_coverage),
-            normalization_rule_name="identity" if norm_rule == "none" else norm_rule,
-            user_defined_symbols=",".join(user_symbols),
+            user_defined_symbols=user_symbols,
             split_digits=True,
-            hard_vocab_limit=False,
-            train_extremely_large_corpus=True
+            normalization_rule_name="identity" if norm_rule == "none" else norm_rule,
+            hard_vocab_limit=bool(hard_vocab),
+            train_extremely_large_corpus=bool(train_extremely),
+            input_sentence_size=int(sentence_size),
+            shuffle_input_sentence=bool(shuffle_sentences)
         )
         
         # 2. Execute training using the Iterator
@@ -1194,11 +1200,57 @@ def create_demo():
                         value="tr",
                         interactive=True
                     )
-            
+                    
             with gr.Row():    
-                # Button to refresh list (in case user just created a dataset)
-                refresh_btn = gr.Button(_("TOKENIZER_BTN_REFRESH"), size="sm")
-            with gr.Row():    
+                refresh_btn = gr.Button(_("TOKENIZER_BTN_REFRESH"))
+                    
+            with gr.Row():
+                include_corpus_chk = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_CORPUS"),
+                    value=False,
+                    info=_("TOKENIZER_INFO_CORPUS")
+                )
+                use_only_corpus_chk = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_ONLY_CORPUS"),
+                    value=False,
+                    info=_("TOKENIZER_INFO_ONLY_CORPUS")
+                )            
+                inject_words_chk = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_INJECT"), 
+                    value=False,
+                    info=_("TOKENIZER_INFO_INJECT")
+                )
+                multiplier_slider = gr.Slider(
+                    label=_("TOKENIZER_SLIDER_MULTIPLIER"), 
+                    minimum=1, maximum=100, step=1, value=10
+                )               
+                deduplicate_chk = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_DEDUP"), 
+                    value=False, 
+                    info=_("TOKENIZER_INFO_DEDUP")
+                )
+                
+            with gr.Row():
+                with gr.Column():                
+                    data_coverage_slider = gr.Slider(
+                        label=_("TOKENIZER_SLIDER_META_COV"),
+                        minimum=10,
+                        maximum=100,
+                        step=1,
+                        value=100,
+                        info=_("TOKENIZER_INFO_META_COV")
+                    )
+                with gr.Column():                
+                    char_coverage_slider = gr.Slider(
+                        label=_("TOKENIZER_SLIDER_CHAR_COV"),
+                        minimum=0.99,
+                        maximum=1.0,
+                        step=0.0001,
+                        value=1.0,
+                        info=_("TOKENIZER_INFO_CHAR_COV")
+                    )
+                    
+            with gr.Row():   
                 vocab_slider = gr.Slider(
                     minimum=2000,
                     maximum=30000,
@@ -1206,26 +1258,7 @@ def create_demo():
                     step=1000,
                     label=_("TOKENIZER_SLIDER_VOCAB")
                 )
-            with gr.Row():
-                special_input = gr.Textbox(
-                    label=_("TOKENIZER_LABEL_SPECIAL"),                   
-                    value="",
-                    placeholder="€ | £ | ¥ | ₺ | ₿ | ± | × | ÷ | ≠ | ≤ | ≥ | ∞ | √ | ∑ | ∏ | π | ∆ | ∂ | µ | Ω"
-                )
                 
-            with gr.Group():
-                gr.Markdown(_("TOKENIZER_HEADER_EMOTIONS"))
-                style_chk = gr.Checkbox(label=_("TOKENIZER_CHK_STYLE"), value=False)
-                emotion_chk = gr.Checkbox(label=_("TOKENIZER_CHK_EMOTION"), value=False)
-                
-            with gr.Group():
-                gr.Markdown(_("TOKENIZER_HEADER_TR_SPECIAL"))
-                tr_spec_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_SPEC"), value=False)
-                tr_seng_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SENG"), value=False)
-                tr_turk_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TURK"), value=False)
-                tr_long_chk = gr.Checkbox(label=_("TOKENIZER_CHK_LONG"), value=False)
-                tr_punc_chk = gr.Checkbox(label=_("TOKENIZER_CHK_PUNC"), value=False)
-            
             with gr.Group(): 
                 gr.Markdown(_("TOKENIZER_HEADER_NORM"))                
                 norm_rule_dd = gr.Dropdown(
@@ -1247,54 +1280,52 @@ def create_demo():
                     scale=4,
                     interactive=True         
                 )
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_EMOTIONS"))
+                style_chk = gr.Checkbox(label=_("TOKENIZER_CHK_STYLE"), value=False)
+                emotion_chk = gr.Checkbox(label=_("TOKENIZER_CHK_EMOTION"), value=False)
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_TR_SPECIAL"))
+                tr_spec_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_SPEC"), value=False)
+                tr_seng_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SENG"), value=False)
+                tr_turk_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TURK"), value=False)
+                tr_long_chk = gr.Checkbox(label=_("TOKENIZER_CHK_LONG"), value=False)
+                tr_punc_chk = gr.Checkbox(label=_("TOKENIZER_CHK_PUNC"), value=False)
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_SPECIAL"))
+                special_input = gr.Textbox(
+                    label=_("TOKENIZER_LABEL_SPECIAL"),                   
+                    value="",
+                    placeholder="€ | £ | ¥ | ₺ | ₿ | ± | × | ÷ | ≠ | ≤ | ≥ | ∞ | √ | ∑ | ∏ | π | ∆ | ∂ | µ | Ω"
+                )
             
-            with gr.Row():
-                with gr.Column():                
-                    data_coverage_slider = gr.Slider(
-                        label=_("TOKENIZER_SLIDER_META_COV"),
-                        minimum=10,
-                        maximum=100,
-                        step=1,
-                        value=100,
-                        info=_("TOKENIZER_INFO_META_COV")
-                    )
-                with gr.Column():                
-                    char_coverage_slider = gr.Slider(
-                        label=_("TOKENIZER_SLIDER_CHAR_COV"),
-                        minimum=0.99,
-                        maximum=1.0,
-                        step=0.0001,
-                        value=1.0,
-                        info=_("TOKENIZER_INFO_CHAR_COV")
-                    )
-
-            with gr.Row():
-                include_corpus_chk = gr.Checkbox(
-                    label=_("TOKENIZER_CHK_CORPUS"),
-                    value=False,
-                    info=_("TOKENIZER_INFO_CORPUS")
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_ADVANCED")) 
+                tok_sentence_size = gr.Number(
+                    label=_("TOKENIZER_LABEL_ADV_SENT_SIZE"), 
+                    value=0, 
+                    precision=0, 
+                    info=_("TOKENIZER_INFO_ADV_SENT_SIZE")
                 )
-                use_only_corpus_chk = gr.Checkbox(
-                    label=_("TOKENIZER_CHK_ONLY_CORPUS"),
-                    value=False,
-                    info=_("TOKENIZER_INFO_ONLY_CORPUS")
-                )            
-                inject_words_chk = gr.Checkbox(
-                    label=_("TOKENIZER_CHK_INJECT"), 
-                    value=False,
-                    info=_("TOKENIZER_INFO_INJECT")
-                )
-                multiplier_slider = gr.Slider(
-                    label=_("TOKENIZER_SLIDER_MULTIPLIER"), 
-                    minimum=1, maximum=100, step=1, value=10
-                )
-                
-                deduplicate_chk = gr.Checkbox(
-                    label=_("TOKENIZER_CHK_DEDUP"), 
+                tok_train_ext = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_ADV_TRAIN_EXT"), 
                     value=False, 
-                    info=_("TOKENIZER_INFO_DEDUP")
+                    info=_("TOKENIZER_INFO_ADV_TRAIN_EXT")
+                )                
+                tok_shuffle = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_ADV_SHUFFLE"), 
+                    value=False, 
+                    info=_("TOKENIZER_INFO_ADV_SHUFFLE")
                 )
-                
+                tok_hard_vocab = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_ADV_HARD_VOCAB"), 
+                    value=False, 
+                    info=_("TOKENIZER_INFO_ADV_HARD_VOCAB")
+                )                  
+                      
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
             with gr.Row():
@@ -1337,7 +1368,11 @@ def create_demo():
             case_rule_dd,
             inject_words_chk,
             multiplier_slider,
-            deduplicate_chk
+            deduplicate_chk,
+            tok_sentence_size,
+            tok_train_ext,
+            tok_shuffle,
+            tok_hard_vocab
         ]
        
         # Train Click
