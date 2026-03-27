@@ -78,22 +78,30 @@
 		"MODELS_STATUS_LOG": "Status / Log",
 		"MODELS_CURRENT_FILES": "Current Files",
 		"MODELS_BTN_REFRESH": "🔄 Refresh",
+		
 		"MODELS_SECTION_GLOBAL": "### 🌍 Global Cache Models (Required for Offline Mode)",
 		"MODELS_CACHE_STATUS": "Cache Download Status",
 		"MODELS_BTN_W2V_BERT": "⬇️ 1. W2V-BERT (facebook/w2v-bert-2.0)",
 		"MODELS_BTN_MASKGCT": "⬇️ 2. MaskGCT (amphion/MaskGCT)",
 		"MODELS_BTN_CAMPPLUS": "⬇️ 3. Campplus (funasr/campplus)",
 		"MODELS_BTN_BIGVGAN": "⬇️ 4. BigVGAN (nvidia/bigvgan...)",
+		
 		"MODELS_SECTION_WHISPER": "### 🎙️ Whisper Models",
 		"MODELS_WHISPER_STATUS": "Whisper Download Status",
 		"MODELS_LABEL_SELECT_MODEL": "Select Model",
 		"MODELS_BTN_DOWNLOAD_WHISPER": "⬇️ Download Whisper Model",
+		
+		"MODELS_SECTION_RVC": "### RVC Base Models",
+		"MODELS_DESC_RVC": "Download required HuBERT and RMVPE models for RVC inference.",
+		"MODELS_BTN_DOWNLOAD_RVC": "📥 Download RVC Base Models",
+	
 		"MODELS_SECTION_DEPENDENCY": "### 🛠️ Dependency Fixes",
 		"MODELS_LABEL_FILE_URL": "File URL",
 		"MODELS_LABEL_TARGET_FILENAME": "Target Filename",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ Download PB2 Fix",
 		"MODELS_DEPENDENCY_STATUS": "Status",
-		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Download Turkish Weights",
+		
+		"MODELS_SECTION_TR_WEIGHTS": "### ♨️ Download Turkish Weights",
 		"MODELS_DESC_TR_WEIGHTS": "Pulls `tr_bpe.model`, `tr_config.yaml`, and `tr_gpt.pth` from `ruygar/itts_tr_lex` directly into the `wui/ckpt` folder.",
 		"MODELS_BTN_DOWNLOAD_TR": "Download Turkish Weights",
 		
@@ -112,13 +120,13 @@
 		"CORPUS_DB_BTN_TRUNCATE": "🗑️ Truncate Entire Database",
 		"CORPUS_DB_LABEL_LOGS": "Status & Logs",
 		
-		"CORPUS_DB_TAB_NORM": "2. Text Normalizer",
+		"CORPUS_DB_TAB_NORM": "2. TXT Chunks Normalizer",
 		"CORPUS_DB_DESC_NORM": "Cleans raw text using the Multilingual Normalizer, aggregates duplicates to prevent repeating chunks, and saves to the `normalized_chunks` table.",
 		"CORPUS_DB_LABEL_LANG_PIPE": "Language Pipeline",
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Normalize & Deduplicate Data",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalization Status",
 		
-		"CORPUS_DB_TAB_TOK": "3. Tokenizer",
+		"CORPUS_DB_TAB_TOK": "3. SPM Tokenizer Test",
 		"CORPUS_DB_DESC_TOK": "Trains a SentencePiece BPE model instantly from the pre-normalized, unique text chunks.",
 		"CORPUS_DB_LABEL_VOCAB": "Vocab Size",
 		"CORPUS_DB_LABEL_PREFIX": "Model Prefix",
@@ -279,6 +287,7 @@
 		"TOKENIZER_LABEL_LANG": "Select Language",
 		"TOKENIZER_BTN_REFRESH": "🔄 Refresh List",
 		"TOKENIZER_SLIDER_VOCAB": "Vocabulary Size",
+		"TOKENIZER_HEADER_SPECIAL": "### Add Special Tokens",
 		"TOKENIZER_LABEL_SPECIAL": "Special Tokens",
 		
 		"TOKENIZER_HEADER_EMOTIONS": "### Theme & Emotion Pointers",
@@ -311,6 +320,16 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Injection Multiplier",
 		"TOKENIZER_CHK_DEDUP": "♻️ Deduplicate Data",
 		"TOKENIZER_INFO_DEDUP": "Remove identical lines to prevent bias.",
+		
+		"TOKENIZER_HEADER_ADVANCED": "### Advanced Settings",
+		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Max Sentences (Sample Size)",
+		"TOKENIZER_INFO_ADV_SENT_SIZE": "Limits RAM usage on massive datasets. Set to 0 to use all.",
+		"TOKENIZER_CHK_ADV_TRAIN_EXT": "Train Extremely Large Corpus",
+		"TOKENIZER_INFO_ADV_TRAIN_EXT": "Activates C++ memory optimizations for multi-gigabyte files.",
+		"TOKENIZER_CHK_ADV_SHUFFLE": "Shuffle Corpus",
+		"TOKENIZER_INFO_ADV_SHUFFLE": "Randomly sample to ensure vocabulary diversity.",
+		"TOKENIZER_CHK_ADV_HARD_VOCAB": "Hard Vocab Limit",
+		"TOKENIZER_INFO_ADV_HARD_VOCAB": "Strictly enforce the requested vocabulary size without padding.",
 		
 		"TOKENIZER_BTN_TRAIN": "🚀 Train Tokenizer",
 		"TOKENIZER_LABEL_LOGS": "Logs",
@@ -511,7 +530,7 @@
 	
 		"TTS_HEADER": "## 🎙️ Standalone Inference Engine",
 		"TTS_DESC": "Bypasses project settings. Loads models exclusively from the `ckpt` directory. Tokenizer logic is automatically assigned based on the file prefix.",
-		"TTS_LABEL_SELECT_MODEL": "Select Model (core.wui_ckpt)",
+		"TTS_LABEL_SELECT_MODEL": "Select Model (ckpt/itts)",
 		"TTS_LABEL_LANG_INJECT": "Language Injection",
 		"TTS_BTN_LOAD": "💾 Load Model into Memory",
 		"TTS_HEADER_AUDIO_OUT": "### 🔉 Reference Audio & Output",

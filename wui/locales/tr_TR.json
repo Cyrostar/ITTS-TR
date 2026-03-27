@@ -4,7 +4,7 @@
 		"HOME": "ANA SAYFA",
 		"MODELS": "MODELLER",
 		"CORPUS": "DERLEM",
-		"CONFIG": "AYAR",
+		"CONFIG": "YAPI",
 		"DATASET": "VERİ SETİ",
 		"TOKENIZER": "SİMGELEŞTİRİCİ",
 		"PREPROCESSOR": "ÖN İŞLEMCİ",
@@ -78,22 +78,30 @@
 		"MODELS_STATUS_LOG": "Durum / Günlük (Log)",
 		"MODELS_CURRENT_FILES": "Mevcut Dosyalar",
 		"MODELS_BTN_REFRESH": "🔄 Yenile",
+		
 		"MODELS_SECTION_GLOBAL": "### 🌍 Global Ön Bellek Modelleri (Çevrimdışı Mod İçin Gerekli)",
 		"MODELS_CACHE_STATUS": "Ön Bellek İndirme Durumu",
 		"MODELS_BTN_W2V_BERT": "⬇️ 1. W2V-BERT (facebook/w2v-bert-2.0)",
 		"MODELS_BTN_MASKGCT": "⬇️ 2. MaskGCT (amphion/MaskGCT)",
 		"MODELS_BTN_CAMPPLUS": "⬇️ 3. Campplus (funasr/campplus)",
 		"MODELS_BTN_BIGVGAN": "⬇️ 4. BigVGAN (nvidia/bigvgan...)",
+		
 		"MODELS_SECTION_WHISPER": "### 🎙️ Whisper Modelleri",
 		"MODELS_WHISPER_STATUS": "Whisper İndirme Durumu",
 		"MODELS_LABEL_SELECT_MODEL": "Model Seç",
 		"MODELS_BTN_DOWNLOAD_WHISPER": "⬇️ Whisper Modelini İndir",
+		
+		"MODELS_SECTION_RVC": "### RVC Temel Modelleri",
+		"MODELS_DESC_RVC": "RVC çıkarımı için gerekli HuBERT ve RMVPE modellerini indirin.",
+		"MODELS_BTN_DOWNLOAD_RVC": "📥 RVC Temel Modellerini İndir",
+		
 		"MODELS_SECTION_DEPENDENCY": "### 🛠️ Bağımlılık Düzeltmeleri",
 		"MODELS_LABEL_FILE_URL": "Dosya URL'si",
 		"MODELS_LABEL_TARGET_FILENAME": "Hedef Dosya Adı",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ PB2 Düzeltmesini İndir",
 		"MODELS_DEPENDENCY_STATUS": "Durum",
-		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Türkçe Ağırlıkları İndir",
+		
+		"MODELS_SECTION_TR_WEIGHTS": "### ♨️ Türkçe Ağırlıkları İndir",
 		"MODELS_DESC_TR_WEIGHTS": "`ruygar/itts_tr_lex` deposundan `tr_bpe.model`, `tr_config.yaml` ve `tr_gpt.pth` dosyalarını doğrudan `wui/ckpt` klasörüne çeker.",
 		"MODELS_BTN_DOWNLOAD_TR": "Türkçe Ağırlıkları İndir",
 		
@@ -112,13 +120,13 @@
 		"CORPUS_DB_BTN_TRUNCATE": "🗑️ Tüm Veritabanını Temizle",
 		"CORPUS_DB_LABEL_LOGS": "Durum ve Günlükler",
 		
-		"CORPUS_DB_TAB_NORM": "2. Metin Normalleştirici",
+		"CORPUS_DB_TAB_NORM": "2. TXT Metin Normalleştirici",
 		"CORPUS_DB_DESC_NORM": "Çok Dilli Normalleştirici kullanarak ham metni temizler, tekrarlanan parçaları önlemek için kopyaları birleştirir ve `normalized_chunks` tablosuna kaydeder.",
 		"CORPUS_DB_LABEL_LANG_PIPE": "Dil Hattı (Pipeline)",
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Verileri Normalize Et ve Tekilleştir",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalizasyon Durumu",
 		
-		"CORPUS_DB_TAB_TOK": "3. Simgeleştirici (Tokenizer)",
+		"CORPUS_DB_TAB_TOK": "3. SPM Simgeleştirici Sınayıcı",
 		"CORPUS_DB_DESC_TOK": "Önceden normalize edilmiş benzersiz metin parçalarından anında bir SentencePiece BPE modeli eğitir.",
 		"CORPUS_DB_LABEL_VOCAB": "Sözlük Boyutu",
 		"CORPUS_DB_LABEL_PREFIX": "Model Öneki (Prefix)",
@@ -279,7 +287,8 @@
 		"TOKENIZER_LABEL_LANG": "Dil Seçin",
 		"TOKENIZER_BTN_REFRESH": "🔄 Listeyi Yenile",
 		"TOKENIZER_SLIDER_VOCAB": "Sözlük Boyutu",
-		"TOKENIZER_LABEL_SPECIAL": "Özel Tokenlar",
+		"TOKENIZER_HEADER_SPECIAL": "### Özel Karakter Ekle",
+		"TOKENIZER_LABEL_SPECIAL": "Özel Tokenlar ( | ile ayrılmış)",
 		
 		"TOKENIZER_HEADER_EMOTIONS": "### Tema ve Duygu Belirteçleri",
 		"TOKENIZER_CHK_STYLE": "Tema belirteçlerini dahil et ([narrative], [podcast])",
@@ -311,6 +320,16 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Enjeksiyon Çarpanı",
 		"TOKENIZER_CHK_DEDUP": "♻️ Verileri Tekilleştir",
 		"TOKENIZER_INFO_DEDUP": "Yanlılığı önlemek için birbirinin aynısı olan satırları kaldırır.",
+		
+		"TOKENIZER_HEADER_ADVANCED": "### Gelişmiş Ayarlar",
+		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Maksimum Cümle (Örneklem Boyutu)",
+		"TOKENIZER_INFO_ADV_SENT_SIZE": "Devasa veri setlerinde RAM kullanımını sınırlar. Tümünü kullanmak için 0 yapın.",
+		"TOKENIZER_CHK_ADV_TRAIN_EXT": "Aşırı Büyük Derlem Eğitimi",
+		"TOKENIZER_INFO_ADV_TRAIN_EXT": "Çoklu gigabaytlık dosyalar için C++ bellek optimizasyonlarını etkinleştirir.",
+		"TOKENIZER_CHK_ADV_SHUFFLE": "Derlemi Karıştır",
+		"TOKENIZER_INFO_ADV_SHUFFLE": "Kelime dağarcığı çeşitliliğini sağlamak için rastgele örneklem alır.",
+		"TOKENIZER_CHK_ADV_HARD_VOCAB": "Kesin Kelime Dağarcığı Sınırı",
+		"TOKENIZER_INFO_ADV_HARD_VOCAB": "İstenen kelime dağarcığı boyutunu dolgu (padding) yapmadan kesin olarak uygular.",
 		
 		"TOKENIZER_BTN_TRAIN": "🚀 Simgeleştiriciyi Eğit",
 		"TOKENIZER_LABEL_LOGS": "Günlükler",
@@ -511,7 +530,7 @@
 	
 		"TTS_HEADER": "## 🎙️ Bağımsız Çıkarım Motoru",
 		"TTS_DESC": "Proje ayarlarını atlar. Modelleri özel olarak `ckpt` dizininden yükler. Tokenizer mantığı, dosya öneki temel alınarak otomatik olarak atanır.",
-		"TTS_LABEL_SELECT_MODEL": "Model Seç (core.wui_ckpt)",
+		"TTS_LABEL_SELECT_MODEL": "Model Seç (ckpt/itts)",
 		"TTS_LABEL_LANG_INJECT": "Dil Enjeksiyonu",
 		"TTS_BTN_LOAD": "💾 Modeli Belleğe Yükle",
 		"TTS_HEADER_AUDIO_OUT": "### 🔉 Referans Ses ve Çıktısı",

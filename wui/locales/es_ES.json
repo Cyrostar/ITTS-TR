@@ -78,22 +78,30 @@
 		"MODELS_STATUS_LOG": "Estado / Registro",
 		"MODELS_CURRENT_FILES": "Archivos Actuales",
 		"MODELS_BTN_REFRESH": "🔄 Actualizar",
+		
 		"MODELS_SECTION_GLOBAL": "### 🌍 Modelos de Caché Global (Requeridos para el Modo Sin Conexión)",
 		"MODELS_CACHE_STATUS": "Estado de Descarga del Caché",
 		"MODELS_BTN_W2V_BERT": "⬇️ 1. W2V-BERT (facebook/w2v-bert-2.0)",
 		"MODELS_BTN_MASKGCT": "⬇️ 2. MaskGCT (amphion/MaskGCT)",
 		"MODELS_BTN_CAMPPLUS": "⬇️ 3. Campplus (funasr/campplus)",
 		"MODELS_BTN_BIGVGAN": "⬇️ 4. BigVGAN (nvidia/bigvgan...)",
+		
 		"MODELS_SECTION_WHISPER": "### 🎙️ Modelos Whisper",
 		"MODELS_WHISPER_STATUS": "Estado de Descarga de Whisper",
 		"MODELS_LABEL_SELECT_MODEL": "Seleccionar Modelo",
 		"MODELS_BTN_DOWNLOAD_WHISPER": "⬇️ Descargar Modelo Whisper",
+		
+		"MODELS_SECTION_RVC": "### RVC Temel Modelleri",
+		"MODELS_DESC_RVC": "RVC çıkarımı için gerekli HuBERT ve RMVPE modellerini indirin.",
+		"MODELS_BTN_DOWNLOAD_RVC": "📥 RVC Temel Modellerini İndir",
+		
 		"MODELS_SECTION_DEPENDENCY": "### 🛠️ Correcciones de Dependencias",
 		"MODELS_LABEL_FILE_URL": "URL del Archivo",
 		"MODELS_LABEL_TARGET_FILENAME": "Nombre del Archivo de Destino",
 		"MODELS_BTN_DOWNLOAD_PB2": "⬇️ Descargar Corrección PB2",
 		"MODELS_DEPENDENCY_STATUS": "Estado",
-		"MODELS_SECTION_TR_WEIGHTS": "### 🇹🇷 Descargar Pesos Turcos",
+		
+		"MODELS_SECTION_TR_WEIGHTS": "### ♨️ Descargar Pesos Turcos",
 		"MODELS_DESC_TR_WEIGHTS": "Descarga `tr_bpe.model`, `tr_config.yaml` y `tr_gpt.pth` desde `ruygar/itts_tr_lex` directamente en la carpeta `wui/ckpt`.",
 		"MODELS_BTN_DOWNLOAD_TR": "Descargar Pesos Turcos",
 		
@@ -279,6 +287,7 @@
 		"TOKENIZER_LABEL_LANG": "Seleccionar Idioma",
 		"TOKENIZER_BTN_REFRESH": "🔄 Actualizar Lista",
 		"TOKENIZER_SLIDER_VOCAB": "Tamaño del Vocabulario",
+		"TOKENIZER_HEADER_SPECIAL": "### Añadir Tokens Especiales",		
 		"TOKENIZER_LABEL_SPECIAL": "Tokens Especiales",
 		
 		"TOKENIZER_HEADER_EMOTIONS": "### Marcadores de Tema y Emoción",
@@ -311,6 +320,16 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Multiplicador de Inyección",
 		"TOKENIZER_CHK_DEDUP": "♻️ Deduplicar Datos",
 		"TOKENIZER_INFO_DEDUP": "Eliminar líneas idénticas para evitar sesgos.",
+		
+		"TOKENIZER_HEADER_ADVANCED": "### Configuración Avanzada",
+		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Máximo de Oraciones (Tamaño de Muestra)",
+		"TOKENIZER_INFO_ADV_SENT_SIZE": "Limita el uso de RAM en conjuntos de datos masivos. Establecer en 0 para usar todos.",
+		"TOKENIZER_CHK_ADV_TRAIN_EXT": "Entrenar Corpus Extremadamente Grande",
+		"TOKENIZER_INFO_ADV_TRAIN_EXT": "Activa las optimizaciones de memoria en C++ para archivos de varios gigabytes.",
+		"TOKENIZER_CHK_ADV_SHUFFLE": "Mezclar Corpus",
+		"TOKENIZER_INFO_ADV_SHUFFLE": "Toma muestras aleatorias para garantizar la diversidad del vocabulario.",
+		"TOKENIZER_CHK_ADV_HARD_VOCAB": "Límite Estricto de Vocabulario",
+		"TOKENIZER_INFO_ADV_HARD_VOCAB": "Impone estrictamente el tamaño de vocabulario solicitado sin relleno (padding).",
 		
 		"TOKENIZER_BTN_TRAIN": "🚀 Entrenar Tokenizador",
 		"TOKENIZER_LABEL_LOGS": "Registros",
@@ -506,7 +525,7 @@
 	
 		"TTS_HEADER": "## 🎙️ Motor de Inferencia Independiente",
 		"TTS_DESC": "Omite la configuración del proyecto. Carga modelos exclusivamente desde el directorio `ckpt`. La lógica del tokenizador se asigna automáticamente según el prefijo del archivo.",
-		"TTS_LABEL_SELECT_MODEL": "Seleccionar Modelo (core.wui_ckpt)",
+		"TTS_LABEL_SELECT_MODEL": "Seleccionar Modelo (ckpt/itts)",
 		"TTS_LABEL_LANG_INJECT": "Inyección de Idioma",
 		"TTS_BTN_LOAD": "💾 Cargar Modelo en Memoria",
 		"TTS_HEADER_AUDIO_OUT": "### 🔉 Audio de referencia y salida",
