@@ -291,6 +291,12 @@ curl -L -o %ARTHA_YT_DIP_DIR%yt-dlp_x86.exe %ARTHA_YT_DIP_URL%
 :YTDIPSKIP
 
 echo/
+echo ...CREATING NECESSARY FILES...
+echo/
+xcopy uix %ARTHA_BASE_DIR% /s
+xcopy wui %ARTHA_HOME_DIR% /s
+
+echo/
 set isitts=
 set /p isitts=SPARSE INDEX-TTS REPO?[y/n]: 
 
@@ -323,6 +329,45 @@ git pull origin main
 :ITTSSKIP
 
 echo/
+set isrvc=
+set /p isrvc=SPARSE APPLIO RVC REPO?[y/n]: 
+
+if /i not "%isrvc%"=="y" goto RVCSKIP
+
+echo/
+echo ...CLONING APPLIO RVC FILES...
+echo/
+set PATH=%PATH%;%ARTHA_GITHUB_DIR%;%ARTHA_GITHUB_DIR%bin;%ARTHA_GITHUB_DIR%cmd
+
+git --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Git not found
+    echo Applio clone failed!
+    echo/
+    goto exit
+)
+
+set APPLIO_URL=https://github.com/IAHispano/Applio.git
+
+if not exist %ARTHA_HOME_DIR%temp_applio md %ARTHA_HOME_DIR%temp_applio
+cd %ARTHA_HOME_DIR%temp_applio
+
+git init
+git remote add -f origin %APPLIO_URL%
+git config core.sparseCheckout true
+echo rvc/ >> .git/info/sparse-checkout
+git pull origin main
+
+echo/
+echo ...MOVING RVC FILES...
+echo/
+xcopy rvc ..\rvc\ /e /i /y
+cd ..
+rmdir /s /q temp_applio
+
+:RVCSKIP
+
+echo/
 echo ...FIXING DEPENDENCIES...
 echo/
 set ARTHA_FIX_SPEECHBRAIN=%ARTHA_ENV_DIR%Lib\site-packages\speechbrain\utils\
@@ -330,8 +375,14 @@ if exist %ARTHA_FIX_SPEECHBRAIN% (
     copy /y %ARTHA_FIX_DIR%importutils.py %ARTHA_FIX_SPEECHBRAIN%
 )
 set ARTHA_FIX_INDEXTTS=%ARTHA_HOME_DIR%indextts\gpt\
-if exist %ARTHA_FIX_SPEECHBRAIN% (
+if exist %ARTHA_FIX_INDEXTTS% (
     copy /y %ARTHA_FIX_DIR%model_v2.py %ARTHA_FIX_INDEXTTS%
+)
+set ARTHA_FIX_RVC=%ARTHA_HOME_DIR%rvc\
+if exist %ARTHA_FIX_RVC% (
+	copy /y %ARTHA_FIX_DIR%core.py %ARTHA_FIX_RVC%
+    copy /y %ARTHA_FIX_DIR%infer.py %ARTHA_FIX_RVC%infer\
+	copy /y %ARTHA_FIX_DIR%train.py %ARTHA_FIX_RVC%train\
 )
 
 :command
