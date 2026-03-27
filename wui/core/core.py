@@ -224,32 +224,53 @@ button[role="tab"][aria-selected="true"] {
 
 def language_list():
 
-    priority = ["tr", "en", "es"]
+    priority = ["zh", "en", "tr", "es"]
     
     # ISO 639-1 codes for European languages
     european = [
-        "sq", "hy", "be", "bs", "bg", "hr", "cs", "da", "nl", "et", 
-        "fi", "fr", "ka", "de", "el", "hu", "is", "ga", "it", "lv", 
-        "lt", "mk", "mt", "mo", "me", "no", "pl", "pt", "ro", "ru", 
-        "sr", "sk", "sl", "es", "sv", "uk"
+        "es", "fr", "ru", "pt", "de", "tr", "it", "pl", "uk", "ro",
+        "nl", "hu", "el", "cs", "sv", "bg", "sr", "da", "fi", "sk",
+        "no", "hr", "sq", "ka", "hy", "lt", "be", "sl", "mo", "lv",
+        "mk", "bs", "et", "mt", "is", "me", "ga"
     ]
     
     # ISO 639-1 codes for common Asian languages
     asian = [
-        "zh", "hi", "ja", "ko", "vi", "th", "bn", "pa", "id", "ms", 
-        "tl", "ta", "te", "mr", "gu", "kn", "ml", "ur", "fa", "ar", 
-        "he", "ne", "si", "km", "lo", "my", "az", "uz", "kk", "tg", "tk"
+        "zh", "hi", "ar", "bn", "ur", "id", "ja", "pa", "mr", "te", 
+        "ta", "vi", "ko", "fa", "tl", "gu", "th", "kn", "ml", "ms", 
+        "my", "uz", "ne", "az", "si", "km", "kk", "he", "tg", "tk", "lo"
     ]
     
     # ISO 639-1 codes for common Latin America languages
-    americas = ["es", "pt", "fr", "nl", "ht"]
+    americas = ["es", "fr", "pt", "nl", "ht"]
+    
+    # ISO 639-1 codes for common African languages
+    african = [
+        "sw", "ha", "yo", "am", "om", "ff", "ig", "zu", "mg", "ak", 
+        "rw", "so", "xh", "af", "ln", "bm", "sn", "ny", "tw", "lg", 
+        "ki", "ti", "st", "tn", "wo"
+    ]
     
     # Add your language here or to priority list
     other = []
     
     # Sort the rest alphabetically for a better UI experience
-    langs = list(set(european + asian + other))
+    langs = list(set(european + asian + african + other))
     langs.sort()
     
     # Combine lists
     return priority + langs
+    
+def get_language_dict() -> dict:
+    """
+    Generates a dictionary mapping language codes to integer IDs.
+    IDs 0, 1, and 2 are bypassed; mappings begin at 3 for 'zh'.
+    """
+    return {lang: index + 3 for index, lang in enumerate(language_list())}
+  
+def language_id(lang_code: str) -> int:
+    """
+    Returns the integer ID of the specified language code using the offset dictionary.
+    """
+    lang_map = get_language_dict()
+    return lang_map.get(lang_code, 0)

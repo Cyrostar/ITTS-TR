@@ -161,6 +161,104 @@ class GenericSpiceTokenizer:
             current_idx = best_cut_idx
 
         return segments
+        
+class SentencePieceTrainerWrapper:
+    """
+    A wrapper class for training SentencePiece models with the most commonly 
+    used parameters initialized to their standard default values, supporting
+    both file-based and generator-based (streaming) data ingestion.
+    """
+    def __init__(
+        self,
+        vocab_size: int = 8000,
+        model_type: str = "bpe",        # ITTS Format
+        character_coverage: float = 0.9995,
+        normalization_rule_name: str = "nmt_nfkc",
+        user_defined_symbols: str = "",
+        byte_fallback: bool = False,
+        split_digits: bool = False,
+        hard_vocab_limit: bool = True,
+        bos_id: int = 0,                # ITTS Format
+        eos_id: int = 1,                # ITTS Format
+        unk_id: int = 2,                # ITTS Format
+        pad_id: int = -1,               # ITTS Format
+        input_sentence_size: int = 0,
+        shuffle_input_sentence: bool = True,
+        train_extremely_large_corpus: bool = False,
+        num_threads: int = 16
+    ):
+        # 1. Core Architecture
+        self.vocab_size = vocab_size
+        self.model_type = model_type
+        
+        # 2. Coverage & Normalization
+        self.character_coverage = character_coverage
+        self.normalization_rule_name = normalization_rule_name
+        self.hard_vocab_limit = hard_vocab_limit
+        
+        # 3. Special Tokens & Fallbacks
+        self.user_defined_symbols = user_defined_symbols
+        self.byte_fallback = byte_fallback
+        self.split_digits = split_digits
+        self.unk_id = unk_id
+        self.bos_id = bos_id
+        self.eos_id = eos_id
+        self.pad_id = pad_id
+        
+        # 4. Processing & Performance
+        self.input_sentence_size = input_sentence_size
+        self.shuffle_input_sentence = shuffle_input_sentence
+        self.train_extremely_large_corpus = train_extremely_large_corpus
+        self.num_threads = num_threads
+
+    def train(self, model_prefix: str, input_file: str = None, sentence_iterator=None):
+        """
+        Executes the training process and returns an execution log.
+        """
+        logs = []
+        logs.append(f"🚀 Starting SentencePiece Training ({self.model_type.upper()})...")
+        logs.append(f"📦 Target Vocab Size: {self.vocab_size} | Prefix: {model_prefix}")
+        
+        # Build the core argument dictionary
+        train_kwargs = {
+            "model_prefix": model_prefix,
+            "vocab_size": self.vocab_size,
+            "model_type": self.model_type,
+            "character_coverage": self.character_coverage,
+            "normalization_rule_name": self.normalization_rule_name,
+            "user_defined_symbols": self.user_defined_symbols,
+            "byte_fallback": self.byte_fallback,
+            "split_digits": self.split_digits,
+            "hard_vocab_limit": self.hard_vocab_limit,
+            "unk_id": self.unk_id,
+            "bos_id": self.bos_id,
+            "eos_id": self.eos_id,
+            "pad_id": self.pad_id,
+            "input_sentence_size": self.input_sentence_size,
+            "shuffle_input_sentence": self.shuffle_input_sentence,
+            "train_extremely_large_corpus": self.train_extremely_large_corpus,
+            "num_threads": self.num_threads
+        }
+
+        # Dynamically inject the correct input source
+        if sentence_iterator is not None:
+            logs.append("🌊 Mode: Streaming from Python Iterator/Generator")
+            train_kwargs["sentence_iterator"] = sentence_iterator
+        elif input_file is not None:
+            logs.append("📄 Mode: Reading from static text file")
+            train_kwargs["input"] = input_file
+        else:
+            logs.append("❌ Error: You must provide either 'input_file' or 'sentence_iterator'.")
+            return "\n".join(logs)
+
+        try:
+            # Unpack the dictionary directly into the SentencePiece trainer
+            spm.SentencePieceTrainer.train(**train_kwargs)
+            logs.append(f"✅ Training Complete! Saved to {model_prefix}.model and {model_prefix}.vocab")
+        except Exception as e:
+            logs.append(f"❌ Training Failed: {e}")
+            
+        return "\n".join(logs)
 
 class JsonToModelConverter:
     """

@@ -31,7 +31,7 @@ class MultilingualWordifier:
     """
     def __init__(self, text_block: str, language_code: str = 'en', abbreviations: bool = False):
         
-        processor_class = WORDIFIER_REGISTRY.get(language_code.lower())
+        processor_class = WORDIFIER_REGISTRY.get(language_code.lower(), UniversalWordifier)
         
         if not processor_class:
             raise NotImplementedError(f"TTS Front-End Error: No wordifier registered for '{language_code}'.")
@@ -73,7 +73,7 @@ class MultilingualNormalizer:
     """
     def __init__(self, lang: str = 'en', extract: bool = False, upper: bool = False, wordify: bool = False, abbreviations: bool = False):
         
-        processor_class = NORMALIZER_REGISTRY.get(lang.lower())
+        processor_class = NORMALIZER_REGISTRY.get(lang.lower(), UniversalNormalizer)
         
         if not processor_class:
             raise NotImplementedError(f"TTS Front-End Error: No normalizer registered for '{lang}'.")
@@ -93,6 +93,74 @@ class MultilingualNormalizer:
         """
         return self.processor.normalize(text)
         
+        
+# =========
+# UNIVERSAL
+# =========
+
+class UniversalWordifier(BaseWordifier):
+    """
+    A generic, fallback TTS text normalizer for unsupported languages.
+    Performs basic unicode normalization and whitespace cleanup.
+    """
+    def __init__(self, text_block: str, abbreviations: bool = False):
+        super().__init__(text_block, abbreviations)
+
+    def _process_pipeline(self, text: str) -> str:
+        if not text:
+            return ""
+            
+        # 1. Unicode Normalization (Standardizes composed/decomposed characters)
+        text = unicodedata.normalize("NFC", text)
+        
+        # 2. Basic Whitespace Cleanup
+        text = text.strip()
+        
+        # 3. Clean Multiple Spaces
+        text = re.sub(r'\s+', ' ', text)
+        
+        return text
+
+class UniversalNormalizer(BaseNormalizer):
+    """
+    A generic, fallback TTS text normalizer for unsupported languages.
+    Performs basic unicode normalization, whitespace cleanup, and casing.
+    """
+    def __init__(self, lang: str = "und", extract: bool = False, upper: bool = False, wordify: bool = False, abbreviations: bool = False):
+        super().__init__(lang, extract, upper, wordify, abbreviations)
+        self.whitespace_re = re.compile(r'\s+')
+
+    def extract_graphemes(self, text: str) -> str:
+        return " ".join(list(text.replace(" ", "")))
+
+    def normalize(self, text: str) -> str:
+        if not text: return ""
+        
+        # 1. Route through the MultilingualWordifier if wordification is enabled
+        if self.wordify_mode:
+            wordifier_router = MultilingualWordifier(text, language_code=self.lang, abbreviations=self.abbreviations_mode)
+            if hasattr(wordifier_router.processor, 'normalized_text'):
+                text = wordifier_router.processor.normalized_text
+            elif hasattr(wordifier_router.processor, 'get_text'):
+                text = wordifier_router.processor.get_text()
+                
+        # 2. Basic Unicode Normalization
+        text = unicodedata.normalize("NFC", text)
+        
+        # 3. Clean Double Spaces
+        text = self.whitespace_re.sub(' ', text).strip()
+        
+        # 4. Apply final modes
+        if self.extract_mode:
+            text = self.extract_graphemes(text)
+            
+        # 5. Basic Casing
+        if self.upper_mode:
+            text = text.upper()
+        else:
+            text = text.lower()
+            
+        return text.strip()        
         
 # =======
 # TURKISH
