@@ -381,7 +381,6 @@ if exist %ARTHA_FIX_INDEXTTS% (
 set ARTHA_FIX_RVC=%ARTHA_HOME_DIR%rvc\
 if exist %ARTHA_FIX_RVC% (
 	copy /y %ARTHA_FIX_DIR%core.py %ARTHA_FIX_RVC%
-    copy /y %ARTHA_FIX_DIR%infer.py %ARTHA_FIX_RVC%infer\
 	copy /y %ARTHA_FIX_DIR%train.py %ARTHA_FIX_RVC%train\
 )
 
