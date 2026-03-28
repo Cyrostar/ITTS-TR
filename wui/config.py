@@ -1,7 +1,9 @@
-import os
-import yaml
 import gradio as gr
+import os
+import json
+import yaml
 import torch
+import sentencepiece as spm
 from indextts.gpt.model_v2 import UnifiedVoice
 from core import core
 from core.core import _
@@ -153,6 +155,37 @@ def save_config_ui(
                 new_state_dict = model.state_dict()
                 filtered = {}
                 
+                target_vocab_size = config_dict["gpt"]["number_text_tokens"]
+                if target_vocab_size > 1800 and target_vocab_size < 12001:
+                    base_size = target_vocab_size - 1800
+                    try:
+                        sp = spm.SentencePieceProcessor()
+                        official_bpe = os.path.join(core.path_base, "indextts", "checkpoints", "bpe.model")
+                        sp.load(official_bpe)
+                        
+                        eng_vocab = []
+                        
+                        # The English block sits exactly from 10201 to 12000
+                        
+                        for i in range(10201, 12000):
+                            eng_vocab.append({
+                                "id": base_size + (i - 10200),
+                                "piece": sp.id_to_piece(i),
+                                "score": sp.get_score(i),
+                                "is_control": sp.is_control(i),
+                                "is_unknown": sp.is_unknown(i),
+                                "is_unused": sp.is_unused(i),
+                                "is_byte": sp.is_byte(i),
+                            })
+                            
+                        eng_json_path = os.path.join(target_dir, "english.json")
+                        with open(eng_json_path, "w", encoding="utf-8") as f:
+                            json.dump(eng_vocab, f, ensure_ascii=False, indent=2)
+                            
+                        transfer_log += f"\n📦 English vocabulary block saved to: {eng_json_path}"
+                    except Exception as e:
+                        transfer_log += f"\n⚠️ Could not extract English vocab JSON: {e}"
+                
                 for k, v in state_dict.items():
                     new_k = k.replace(".base_layer.", ".")
                     if new_k not in new_state_dict: continue
@@ -165,9 +198,33 @@ def save_config_ui(
                     
                     try:
                         if len(v.shape) == len(target_shape):
-                            slices = tuple(slice(0, min(ds, ts)) for ds, ts in zip(v.shape, target_shape))
                             expanded_param = new_state_dict[new_k].clone()
-                            expanded_param[slices] = v[slices]
+                            
+                            # --- SMART EMBEDDING SURGERY ---
+                            # Target layers that map to the vocabulary size
+                            is_vocab_layer = ("text_embedding.weight" in new_k) or ("text_head" in new_k)
+                            
+                            # Ensure we are shrinking, and have enough room for the 1800 English tokens
+                            if is_vocab_layer and target_shape[0] < v.shape[0] and target_shape[0] > 1800:
+                                eng_size = 1800
+                                eng_start_old = 10201
+                                base_size = target_shape[0] - eng_size
+                                
+                                if len(v.shape) == 1: 
+                                    # 1D Tensor (e.g., text_head.bias)
+                                    expanded_param[:base_size] = v[:base_size]
+                                    expanded_param[base_size:] = v[eng_start_old : eng_start_old + eng_size]
+                                else: 
+                                    # 2D Tensor (e.g., text_embedding.weight)
+                                    expanded_param[:base_size, :] = v[:base_size, :]
+                                    expanded_param[base_size:, :] = v[eng_start_old : eng_start_old + eng_size, :]
+                                    
+                                transfer_log += f"\n✨ Surgery on {new_k}: {base_size} Base + {eng_size} English tokens appended (English block starts at ID {base_size})."
+                            else:
+                                # Standard naive slicing for non-vocab layers or incompatible dimensions
+                                slices = tuple(slice(0, min(ds, ts)) for ds, ts in zip(v.shape, target_shape))
+                                expanded_param[slices] = v[slices]
+                                
                             filtered[new_k] = expanded_param
                     except Exception as e:
                         transfer_log += f"\nSkipped layer {new_k}: Dimension mismatch ({v.shape} vs {target_shape})."
@@ -183,7 +240,7 @@ def save_config_ui(
                     "epoch": 0
                 }, official_model_path)
                 
-                transfer_log = f"\nSuccessfully generated resized base model: {official_model_path}"
+                transfer_log += f"\nSuccessfully generated resized base model: {official_model_path}"
             except Exception as e:
                 transfer_log = f"\nWarning: Base checkpoint transfer failed: {str(e)}"
         else:
