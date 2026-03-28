@@ -183,6 +183,14 @@ class IndexTTSExtractor:
             try:
                 ckpt = torch.load(gpt_path, map_location="cpu")
                 state = ckpt.get("model", ckpt)
+                
+                # Filter out parameters with size mismatches (e.g., when vocabulary size changes)
+                model_state_dict = self.gpt.state_dict()
+                for key in list(state.keys()):
+                    if key in model_state_dict and state[key].shape != model_state_dict[key].shape:
+                        print(f"⚠️ Notice: Skipping '{key}' due to size mismatch.")
+                        del state[key]
+                        
                 self.gpt.load_state_dict(state, strict=False)
             except Exception as e:
                 error_msg = f"CRITICAL ERROR: Failed to load GPT checkpoint weights. File may be corrupted. Error: {e}"

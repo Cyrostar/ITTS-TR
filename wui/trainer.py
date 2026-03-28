@@ -949,7 +949,7 @@ def create_demo():
         # --- 3. ADVANCED OPTIONS (Hidden to reduce clutter) ---
         with gr.Accordion(_("TRAINER_ACC_ADVANCED"), open=False, elem_classes="wui-accordion"):
             with gr.Row():
-                resize_vocab = gr.Checkbox(label=_("TRAINER_CHK_RESIZE_VOCAB"), value=False)
+                resize_vocab = gr.Checkbox(label=_("TRAINER_CHK_RESIZE_VOCAB"), value=True)
                 expand_text = gr.Checkbox(label=_("TRAINER_CHK_EXPAND_TEXT"), value=True)
                 expand_audio = gr.Checkbox(label=_("TRAINER_CHK_EXPAND_AUDIO"), value=True)
                 
@@ -1030,9 +1030,14 @@ def create_demo():
             outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, use_merged, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
         )
         
+        def load_initial_project():
+            projects = list_available_projects()
+            default_proj = projects[0] if projects else None
+            return on_project_select(default_proj)
+        
         demo.load(
-            fn=on_project_select,
-            inputs=[project_dd],
+            fn=load_initial_project,
+            inputs=[],
             outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, use_merged, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
         )
         
