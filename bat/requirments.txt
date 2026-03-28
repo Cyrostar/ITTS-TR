@@ -89,3 +89,4 @@ beautifulsoup4
 wget
 torchfcpe
 noisereduce
+pedalboard
