@@ -27,6 +27,7 @@ import preprocessor
 import trainer
 import inference
 import tts
+import sts
 
 def update_language(new_lang):
     """Updates the global language and saves it to config."""
@@ -153,6 +154,9 @@ with gr.Blocks() as root_demo:
             
         with gr.Tab(_("TTS")):
             tts.create_demo()
+            
+        with gr.Tab(_("RVC")):
+            sts.create_demo()
             
     #################################################
      
