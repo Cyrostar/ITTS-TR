@@ -18,6 +18,7 @@ from core.spice import SentencePieceTrainerWrapper
 from core.spice import GenericSpiceTokenizer
 from core.spice import JsonToModelConverter
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
+from core.syllabify import TurkishSyllabifier
 from core.database import SQLiteManager
 
 # --- HELPER FUNCTIONS ---
@@ -778,6 +779,51 @@ def test_wordifier_ui(text, return_words_flag, lang, use_abbrev):
             
     except Exception as e:
         return f"Wordifier Error: {e}"
+        
+def test_syllabifier_ui(text, include_stress, check_harmony, detailed_analysis):
+    if not text:
+        return "", ""
+    try:
+        from core.syllabify import TurkishSyllabifier
+        syllabifier = TurkishSyllabifier()
+        output_lines = []
+        all_syllables_flat = []
+
+        if detailed_analysis:
+            # Deep linguistic breakdown word-by-word
+            words = text.split()
+            for word in words:
+                if not word: continue
+                analysis = syllabifier.analyze_word(word)
+                output_lines.append(f"Word: {analysis['word']}")
+                output_lines.append(f"  ▶ Formatted: {analysis['formatted_with_stress'] if include_stress else analysis['formatted']}")
+                output_lines.append(f"  ▶ Syllable Count: {analysis['syllable_count']}")
+                output_lines.append(f"  ▶ Harmony Valid: {'✅' if analysis['vowel_harmony']['valid'] else '❌'} ({analysis['vowel_harmony']['note']})")
+                output_lines.append(f"  ▶ Stress Exception: {'Yes' if analysis['has_exception'] else 'No'}")
+                output_lines.append(f"  ▶ Neutral Suffix: {'Yes' if analysis['has_neutral_suffix'] else 'No'}")
+                output_lines.append("-" * 30)
+                
+                # Extract syllables for the flat sequence
+                target_syllables = analysis['syllables_with_stress'] if include_stress else analysis['syllables']
+                all_syllables_flat.extend(target_syllables)
+        else:
+            # Standard phrase processing
+            results = syllabifier.process_phrase(text, include_stress=include_stress)
+            for word, syllables in results:
+                joined_syllables = syllabifier.join_syllables(syllables, separator="-")
+                line = f"{word} -> {joined_syllables}"
+                
+                if check_harmony:
+                    harmony = syllabifier.check_vowel_harmony(word)
+                    line += f" | Harmony: {'✅' if harmony['valid'] else '❌'}"
+                    
+                output_lines.append(line)
+                all_syllables_flat.extend(syllables)
+            
+        flat_syllables_str = ", ".join(all_syllables_flat)
+        return "\n".join(output_lines), flat_syllables_str
+    except Exception as e:
+        return f"Syllabifier Error: {e}", ""
         
 def process_design_vocab(
     uploaded_model, 
@@ -1629,6 +1675,46 @@ def create_demo():
                 fn=test_normalizer_ui,
                 inputs=[norm_input, norm_lang, norm_case, norm_extract],
                 outputs=norm_output
+            )
+            
+        # =========================
+        # Turkish Syllabifier Tester
+        # =========================
+        with gr.Accordion(_("TOKENIZER_ACC_SYLLABIFIER"), open=False, elem_classes="wui-accordion"):
+            gr.Markdown(_("TOKENIZER_DESC_SYLLABIFIER"))
+            
+            with gr.Row():
+                with gr.Column(scale=3):
+                    syllabify_input = gr.Textbox(
+                        label=_("TOKENIZER_LABEL_INPUT"), 
+                        lines=3, 
+                        value="Merhaba dünya! Bu bir test.",
+                        placeholder=_("TOKENIZER_PLACEHOLDER_SYLLABIFY_INPUT")
+                    )
+                with gr.Column(scale=1):
+                    syllabify_stress_chk = gr.Checkbox(label=_("TOKENIZER_CHK_STRESS_MARKERS"), value=False)
+                    syllabify_harmony_chk = gr.Checkbox(label=_("TOKENIZER_CHK_VOWEL_HARMONY"), value=False)
+                    syllabify_detailed_chk = gr.Checkbox(label=_("TOKENIZER_CHK_DETAILED_ANALYSIS"), value=False)
+                        
+            with gr.Row():
+                syllabify_output = gr.Textbox(
+                    label=_("TOKENIZER_LABEL_RESULT"), 
+                    lines=6, 
+                    interactive=False
+                )
+            with gr.Row():
+                syllabify_flat_output = gr.Textbox(
+                    label=_("TOKENIZER_LABEL_COMMA_SEP_SYLLABLES"), 
+                    lines=2, 
+                    interactive=False
+                )
+            
+            syllabify_btn = gr.Button(_("TOKENIZER_BTN_SYLLABIFY"), variant="primary")
+            
+            syllabify_btn.click(
+                fn=test_syllabifier_ui,
+                inputs=[syllabify_input, syllabify_stress_chk, syllabify_harmony_chk, syllabify_detailed_chk],
+                outputs=[syllabify_output, syllabify_flat_output]
             )
             
         # =====================
