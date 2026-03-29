@@ -824,18 +824,20 @@ def test_syllabifier_ui(text, include_stress, check_harmony, detailed_analysis):
         return "\n".join(output_lines), flat_syllables_str
     except Exception as e:
         return f"Syllabifier Error: {e}", ""
-        
+                 
 def process_design_vocab(
     uploaded_model, 
+    strip_lang_markers,
     strip_cjk, 
     strip_en_tokens, 
-    preserve_source_punct,
+    strip_punct,
     apply_injections, 
     convert_lowercase,
     target_pres_letters,
     target_pres_punct,
     target_token_case,
-    target_letter_case
+    target_letter_case,
+    design_vocab_slider
 ):
         
     logs = []
@@ -853,10 +855,34 @@ def process_design_vocab(
         sp.load(model_path_source)
     
         data = []
+        target_vocab_size = int(design_vocab_slider)
+        is_smaller = target_vocab_size < 12000
         
+        # Define original boundaries
+        en_block_start_orig = 10201
+        en_block_end_orig = 11999
+        en_capacity = en_block_end_orig - en_block_start_orig + 1 # 1799 tokens
+        
+        # Calculate new base size for shifting
+        base_size = target_vocab_size - en_capacity if is_smaller else en_block_start_orig
+        discarded_base_count = 0
+        
+        def map_id(orig_id):
+            if is_smaller:
+                if orig_id >= en_block_start_orig:
+                    return base_size + (orig_id - en_block_start_orig)
+                return orig_id
+            return orig_id
+
         for i in range(sp.get_piece_size()):
+            # Truncate base tokens that overlap with the new shifted EN block
+            if is_smaller and base_size <= i < en_block_start_orig:
+                discarded_base_count += 1
+                continue
+                
+            new_id = map_id(i)
             data.append({
-                "id": i,
+                "id": new_id,
                 "piece": sp.id_to_piece(i),
                 "score": sp.get_score(i),
                 "is_control": sp.is_control(i),
@@ -864,9 +890,19 @@ def process_design_vocab(
                 "is_unused": sp.is_unused(i),
                 "is_byte": sp.is_byte(i),
             })
+            
+        # Dynamically update boundaries for subsequent rules
+        en_base_start = map_id(10204)
+        en_base_end = map_id(11998)
+        pad_id = map_id(11999)
+        space_id = map_id(10201)
+        injection_start = map_id(10203)
+        
+        if is_smaller:
+            logs.append(f"⚠️ Target Vocab Size ({target_vocab_size}) is smaller than Source. Discarded {discarded_base_count} base tokens. Shifted EN block to bottom.")
 
         # --- FILTERING SETUP ---
-        target_tags = ["[ZH]", "[EN]", "[JA]", "[KO]"]
+        target_tags = ["▁[ZH]", "▁[EN]", "▁[JA]", "▁[KO]"]
         
         u2581_char = "▁"
         allowed_pattern = f'^[a-zA-ZçğıİöşüÇĞÖŞÜâîûÂÎÛ\\s\\W{u2581_char}]+$'
@@ -887,7 +923,7 @@ def process_design_vocab(
         base_en_tokens = set()
         for entry in data:
             p_id = entry.get("id", -1)
-            if 10204 <= p_id <= 11998:
+            if en_base_start <= p_id <= en_base_end:
                 p_piece = entry.get("piece", "")
                 core_chars = p_piece.replace("▁", "")
                 if len(core_chars) > 1:
@@ -898,7 +934,7 @@ def process_design_vocab(
             piece_id = entry.get("id", -1)
             
             # Rule 1: Strip language markers
-            if any(tag in piece for tag in target_tags):
+            if strip_lang_markers and any(tag in piece for tag in target_tags):
                 removed_pieces.append(piece)
                 removed_count += 1
                 continue
@@ -916,12 +952,12 @@ def process_design_vocab(
             # Rule 4: Source Punctuation Filtration
             core_chars = piece.replace("▁", "")
             if core_chars and bool(punct_pattern.match(core_chars)):
-                if not preserve_source_punct:
+                if strip_punct:
                     punct_removed_count += 1
                     continue
                 
-            # Rule 5: Dynamic EN Token Handling (Base EN block spans 10204-11998)
-            if 10204 <= piece_id <= 11998:
+            # Rule 5: Dynamic EN Token Handling
+            if en_base_start <= piece_id <= en_base_end:
                 if strip_en_tokens and piece in base_en_tokens:
                     en_removed_count += 1
                     continue
@@ -944,40 +980,26 @@ def process_design_vocab(
                 continue
                 
             # Rule 8: Catch-all for remaining valid tokens
-            if piece_id != 11999:
+            if piece_id != pad_id:
                 cleaned_data.append(entry)
 
-        # Rule 9: Inject Custom Language Markers at IDs 3 and 4
-        cleaned_data = [e for e in cleaned_data if e.get("id") not in [3, 4]]
-        
-        cleaned_data.extend([
-            {
-                "id": 3, "piece": "▁[TR]", "score": 0.0,
-                "is_control": False, "is_unknown": False, "is_unused": False, "is_byte": False
-            },
-            {
-                "id": 4, "piece": "▁[EN]", "score": 0.0,
-                "is_control": False, "is_unknown": False, "is_unused": False, "is_byte": False
-            }
-        ])
-
-        # Rule 10: Enforce ID 11999 as <pad>
+        # Rule 9: Enforce dynamic ID as <pad>
         cleaned_data.append({
-            "id": 11999, "piece": "<pad>", "score": 0.0,
+            "id": pad_id, "piece": "<pad>", "score": 0.0,
             "is_control": True, "is_unknown": False, "is_unused": False, "is_byte": False
         })
         
-        # Rule 11: Convert Remaining EN Tokens to Lowercase
+        # Rule 10: Convert Remaining EN Tokens to Lowercase
         if convert_lowercase:
             for entry in cleaned_data:
-                if 10204 <= entry.get("id", -1) <= 11998:
+                if en_base_start <= entry.get("id", -1) <= en_base_end:
                     orig_piece = entry.get("piece", "")
                     lowered_piece = orig_piece.lower()
                     if orig_piece != lowered_piece:
                         entry["piece"] = lowered_piece
                         lowered_count += 1
         
-        # Rule 12: Dynamic Injections based on UI Master Flag
+        # Rule 11: Dynamic Injections based on UI Master Flag
         required_injections = []
         
         if apply_injections:
@@ -1005,7 +1027,7 @@ def process_design_vocab(
         injected_items_log = []
         
         if missing_injections:
-            available_id = 10203  # Start searching downwards from just below the English block
+            available_id = injection_start  # Start searching downwards from just below the English block
             for item in missing_injections:
                 while available_id in existing_ids:
                     available_id -= 1
@@ -1030,17 +1052,17 @@ def process_design_vocab(
         logs.append(f"1. Language markers removed: {removed_count} (Tokens: {', '.join(removed_pieces)})")
         logs.append("2. <s>, </s> and <unk> preserved (with ids 0,1,2)")
         
-        if preserve_source_punct:
-            logs.append("3. Source punctuation preserved.")
-        else:
+        if strip_punct:
             logs.append(f"3. Source punctuation stripped ({punct_removed_count} base punctuation tokens removed).")
+        else:
+            logs.append("3. Source punctuation preserved.")
             
-        logs.append("4. Special space character is preserved (with id 10201)")
+        logs.append(f"4. Special space character is preserved (with id {space_id})")
         
         if strip_en_tokens:
             logs.append(f"5. English sub-words stripped: {en_removed_count} tokens removed (Single chars preserved).")
         else:
-            logs.append("5. All english pieces are preserved (10204 - 11998).")
+            logs.append(f"5. All english pieces are preserved ({en_base_start} - {en_base_end}).")
             
         if strip_cjk:
             logs.append(f"6. CJK and invalid characters removed via Regex: {invalid_chars_count}")
@@ -1048,7 +1070,7 @@ def process_design_vocab(
             logs.append(f"6. Invalid characters removed via Regex: {invalid_chars_count} (CJK preserved)")
             
         logs.append("7. Injected ▁[TR] (ID: 3) and ▁[EN] (ID: 4)")
-        logs.append("8. Last piece that is 11999 is set as <pad>")
+        logs.append(f"8. Last piece that is {pad_id} is set as <pad>")
         
         if convert_lowercase:
             logs.append(f"9. Converted {lowered_count} remaining English tokens to lowercase.")
@@ -1089,7 +1111,7 @@ def process_design_vocab(
             existing_pieces = {e.get("piece") for e in cleaned_data}
             existing_ids = {e.get("id") for e in cleaned_data}
             
-            max_id = 11999
+            max_id = target_vocab_size
             available_gaps = [i for i in range(max_id) if i not in existing_ids]
             
             merged_count = 0
@@ -1731,10 +1753,11 @@ def create_demo():
                     )
                 with gr.Column(scale=1):
                     gr.Markdown(_("TOKENIZER_HEADER_DESIGN_SOURCE"))
+                    design_source_strip_lang = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_LANG"), value=True)
                     design_source_strip_cjk = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_CJK"), value=True)
-                    design_source_strip_en = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_ENG"), value=True)
-                    design_source_pres_punct = gr.Checkbox(label=_("TOKENIZER_CHK_PRES_SRC_PUNCT"), value=True) 
-                    design_source_apply_injections = gr.Checkbox(label=_("TOKENIZER_CHK_APPLY_INJ"), value=True)
+                    design_source_strip_en = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_ENG"), value=False)
+                    design_source_strip_punct = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_SRC_PUNCT"), value=False) 
+                    design_source_apply_injections = gr.Checkbox(label=_("TOKENIZER_CHK_APPLY_INJ"), value=False)
                     design_source_conv_lower = gr.Checkbox(label=_("TOKENIZER_CHK_CONV_LOWER"), value=False)
                 with gr.Column(scale=1):
                     gr.Markdown(_("TOKENIZER_HEADER_DESIGN_TARGET"))
@@ -1748,8 +1771,17 @@ def create_demo():
                     design_target_letter_case = gr.Dropdown(
                         label=_("TOKENIZER_LABEL_TGT_LET_CASE"),
                         choices=["lowercase", "uppercase"],
-                        value="uppercase"
+                        value="lowercase"
                     )
+                    
+            with gr.Row():   
+                design_vocab_slider = gr.Slider(
+                    minimum=2000,
+                    maximum=30000,
+                    value=12000,
+                    step=1000,
+                    label=_("TOKENIZER_SLIDER_VOCAB")
+                )
                     
             with gr.Row():
                 design_vocab_btn = gr.Button(_("TOKENIZER_BTN_DESIGN"), variant="primary")
@@ -1780,16 +1812,19 @@ def create_demo():
                 inputs=[
                     design_model_upload, 
                     # Source Flags
+                    design_source_strip_lang,
                     design_source_strip_cjk, 
                     design_source_strip_en, 
-                    design_source_pres_punct,
+                    design_source_strip_punct,
                     design_source_apply_injections, 
                     design_source_conv_lower,
                     # Target Flags
                     design_target_pres_letters,
                     design_target_pres_punct,
                     design_target_token_case,
-                    design_target_letter_case
+                    design_target_letter_case,
+                    # Global
+                    design_vocab_slider
                 ],
                 outputs=[
                     design_source_output, 
