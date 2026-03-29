@@ -371,8 +371,17 @@
 		"TOKENIZER_PLACEHOLDER_NORM_INPUT": "Ham metni buraya girin...",
 		"TOKENIZER_LABEL_NORM_OUT": "Normalize Edilmiş Çıktı",
 		"TOKENIZER_BTN_NORM": "Metni Normalize Et",
+		
+		"TOKENIZER_ACC_SYLLABIFIER": "Türkçe Heceleyici",
+		"TOKENIZER_DESC_SYLLABIFIER": "Türkçe heceleme, vurgu işaretleme ve ünlü uyumu algoritmalarını test edin.",
+		"TOKENIZER_PLACEHOLDER_SYLLABIFY_INPUT": "Türkçe metni buraya girin...",
+		"TOKENIZER_CHK_STRESS_MARKERS": "Vurgu İşaretlerini Ekle",
+		"TOKENIZER_CHK_VOWEL_HARMONY": "Ünlü Uyumunu Kontrol Et",
+		"TOKENIZER_CHK_DETAILED_ANALYSIS": "Detaylı Analiz Modu",
+		"TOKENIZER_LABEL_COMMA_SEP_SYLLABLES": "Virgülle Ayrılmış Heceler",
+		"TOKENIZER_BTN_SYLLABIFY": "Hecele",
 
-		"TOKENIZER_ACC_DESIGN": "🎨 Özel Model Tasarla",
+		"TOKENIZER_ACC_DESIGN": "✂️ Özel Model Tasarla",
 		"TOKENIZER_DESC_DESIGN": "Orijinal ve eğitilmiş tokenizer modellerini kullanarak özel bir model tasarlayın.",
 		"TOKENIZER_LABEL_DESIGN_UPLOAD": "Resmi modelle birleştirilecek modeli yükleyin",
 		"TOKENIZER_HEADER_DESIGN_SOURCE": "#### KAYNAK (Resmi model)",

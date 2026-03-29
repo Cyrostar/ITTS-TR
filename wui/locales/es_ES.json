@@ -371,6 +371,15 @@
 		"TOKENIZER_PLACEHOLDER_NORM_INPUT": "Introduzca el texto sin procesar aquí...",
 		"TOKENIZER_LABEL_NORM_OUT": "Salida Normalizada",
 		"TOKENIZER_BTN_NORM": "Normalizar Texto",
+		
+		"TOKENIZER_ACC_SYLLABIFIER": "✂️ Silabeador Turco",
+		"TOKENIZER_DESC_SYLLABIFIER": "Pruebe los algoritmos de silabación, marcación de acento y armonía vocálica del turco.",
+		"TOKENIZER_PLACEHOLDER_SYLLABIFY_INPUT": "Ingrese el texto en turco aquí...",
+		"TOKENIZER_CHK_STRESS_MARKERS": "Incluir Marcadores de Acento",
+		"TOKENIZER_CHK_VOWEL_HARMONY": "Comprobar Armonía Vocálica",
+		"TOKENIZER_CHK_DETAILED_ANALYSIS": "Modo de Análisis Detallado",
+		"TOKENIZER_LABEL_COMMA_SEP_SYLLABLES": "Sílabas Separadas por Comas",
+		"TOKENIZER_BTN_SYLLABIFY": "Silabear",
 
 		"TOKENIZER_ACC_DESIGN": "🎨 Diseñar Modelo Personalizado",
 		"TOKENIZER_DESC_DESIGN": "Diseñar un modelo personalizado a partir del modelo original y los modelos de tokenizadores entrenados.",

@@ -371,6 +371,15 @@
 		"TOKENIZER_PLACEHOLDER_NORM_INPUT": "Enter raw text here...",
 		"TOKENIZER_LABEL_NORM_OUT": "Normalized Output",
 		"TOKENIZER_BTN_NORM": "Normalize Text",
+		
+		"TOKENIZER_ACC_SYLLABIFIER": "✂️ Turkish Syllabifier",
+		"TOKENIZER_DESC_SYLLABIFIER": "Test the Turkish syllabification, stress marking, and harmony algorithms.",
+		"TOKENIZER_PLACEHOLDER_SYLLABIFY_INPUT": "Enter Turkish text here...",
+		"TOKENIZER_CHK_STRESS_MARKERS": "Include Stress Markers",
+		"TOKENIZER_CHK_VOWEL_HARMONY": "Check Vowel Harmony",
+		"TOKENIZER_CHK_DETAILED_ANALYSIS": "Detailed Analysis Mode",
+		"TOKENIZER_LABEL_COMMA_SEP_SYLLABLES": "Comma-Separated Syllables",
+		"TOKENIZER_BTN_SYLLABIFY": "Syllabify",
 
 		"TOKENIZER_ACC_DESIGN": "🎨 Design Custom Model",
 		"TOKENIZER_DESC_DESIGN": "Design a custom model from the original and the trained tokenizer models.",
