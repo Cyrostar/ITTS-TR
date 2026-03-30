@@ -126,7 +126,12 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Verileri Normalize Et ve Tekilleştir",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalizasyon Durumu",
 		
-		"CORPUS_DB_TAB_TOK": "3. SPM Simgeleştirici Sınayıcı",
+		"CORPUS_DB_TAB_SYL": "3. TXT Metin Hecelendirici",
+		"CORPUS_DB_DESC_SYL": "TTS Süre modellemesi için dilbilimsel bir frekans dağılımı oluşturmak amacıyla normalleştirilmiş metin parçalarından heceleri çıkarır.",
+		"CORPUS_DB_BTN_SYL": "Heceleri Çıkar",
+		"CORPUS_DB_LABEL_SYL_STATUS": "Durum Günlüğü",
+		
+		"CORPUS_DB_TAB_TOK": "4. SPM Simgeleştirici Sınayıcı",
 		"CORPUS_DB_DESC_TOK": "Önceden normalize edilmiş benzersiz metin parçalarından anında bir SentencePiece BPE modeli eğitir.",
 		"CORPUS_DB_LABEL_VOCAB": "Sözlük Boyutu",
 		"CORPUS_DB_LABEL_PREFIX": "Model Öneki (Prefix)",
@@ -320,6 +325,10 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Enjeksiyon Çarpanı",
 		"TOKENIZER_CHK_DEDUP": "♻️ Verileri Tekilleştir",
 		"TOKENIZER_INFO_DEDUP": "Yanlılığı önlemek için birbirinin aynısı olan satırları kaldırır.",
+		
+		"TOKENIZER_HEADER_SYL": "Heceler",
+		"TOKENIZER_CHK_INJECT_SYL": "Yüksek Frekanslı Heceleri Enjekte Et",
+		"TOKENIZER_LABEL_SYL_COUNT": "Hece Sayısı",
 		
 		"TOKENIZER_HEADER_ADVANCED": "### Gelişmiş Ayarlar",
 		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Maksimum Cümle (Örneklem Boyutu)",

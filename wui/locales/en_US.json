@@ -126,7 +126,12 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Normalize & Deduplicate Data",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalization Status",
 		
-		"CORPUS_DB_TAB_TOK": "3. SPM Tokenizer Test",
+		"CORPUS_DB_TAB_SYL": "3. TXT Chunks Syllabifier",
+		"CORPUS_DB_DESC_SYL": "Extracts syllables from normalized text chunks to build a linguistic frequency distribution for TTS Duration modeling.",
+		"CORPUS_DB_BTN_SYL": "Extract Syllables",
+		"CORPUS_DB_LABEL_SYL_STATUS": "Status Logging",
+		
+		"CORPUS_DB_TAB_TOK": "4. SPM Tokenizer Test",
 		"CORPUS_DB_DESC_TOK": "Trains a SentencePiece BPE model instantly from the pre-normalized, unique text chunks.",
 		"CORPUS_DB_LABEL_VOCAB": "Vocab Size",
 		"CORPUS_DB_LABEL_PREFIX": "Model Prefix",
@@ -287,8 +292,6 @@
 		"TOKENIZER_LABEL_LANG": "Select Language",
 		"TOKENIZER_BTN_REFRESH": "🔄 Refresh List",
 		"TOKENIZER_SLIDER_VOCAB": "Vocabulary Size",
-		"TOKENIZER_HEADER_SPECIAL": "### Add Special Tokens",
-		"TOKENIZER_LABEL_SPECIAL": "Special Tokens",
 		
 		"TOKENIZER_HEADER_EMOTIONS": "### Theme & Emotion Pointers",
 		"TOKENIZER_CHK_STYLE": "Include theme pointers ([narrative], [podcast])",
@@ -300,6 +303,13 @@
 		"TOKENIZER_CHK_TURK": "Include Turkic characters (ə, ұ, қ)",
 		"TOKENIZER_CHK_LONG": "Include long vowels (â, î, û)",
 		"TOKENIZER_CHK_PUNC": "Include punctuation (.  ,  ?  !  '  :  ;  ...)",
+		
+		"TOKENIZER_HEADER_SPECIAL": "### Add Special Tokens",
+		"TOKENIZER_LABEL_SPECIAL": "Special Tokens",
+		
+		"TOKENIZER_HEADER_SYL": "Syllables",
+		"TOKENIZER_CHK_INJECT_SYL": "Inject High-Frequency Syllables",
+		"TOKENIZER_LABEL_SYL_COUNT": "Syllable Count",
 		
 		"TOKENIZER_HEADER_NORM": "### Sentencepiece Normalization Rule",
 		"TOKENIZER_LABEL_NORM": "Normalization Rule",
@@ -320,7 +330,7 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Injection Multiplier",
 		"TOKENIZER_CHK_DEDUP": "♻️ Deduplicate Data",
 		"TOKENIZER_INFO_DEDUP": "Remove identical lines to prevent bias.",
-		
+				
 		"TOKENIZER_HEADER_ADVANCED": "### Advanced Settings",
 		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Max Sentences (Sample Size)",
 		"TOKENIZER_INFO_ADV_SENT_SIZE": "Limits RAM usage on massive datasets. Set to 0 to use all.",

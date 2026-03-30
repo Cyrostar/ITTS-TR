@@ -126,7 +126,12 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Normalizar y Deduplicar Datos",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Estado de Normalización",
 		
-		"CORPUS_DB_TAB_TOK": "3. Tokenizador",
+		"CORPUS_DB_TAB_SYL": "3. Silabeador de Texto",
+		"CORPUS_DB_DESC_SYL": "Extrae sílabas de fragmentos de texto normalizados para construir una distribución de frecuencia lingüística para el modelado de duración TTS.",
+		"CORPUS_DB_BTN_SYL": "Extraer Sílabas",
+		"CORPUS_DB_LABEL_SYL_STATUS": "Registro de Estado",
+		
+		"CORPUS_DB_TAB_TOK": "4. Tokenizador",
 		"CORPUS_DB_DESC_TOK": "Entrena instantáneamente un modelo SentencePiece BPE a partir de fragmentos de texto únicos pre-normalizados.",
 		"CORPUS_DB_LABEL_VOCAB": "Tamaño del Vocabulario",
 		"CORPUS_DB_LABEL_PREFIX": "Prefijo del Modelo",
@@ -320,6 +325,10 @@
 		"TOKENIZER_SLIDER_MULTIPLIER": "Multiplicador de Inyección",
 		"TOKENIZER_CHK_DEDUP": "♻️ Deduplicar Datos",
 		"TOKENIZER_INFO_DEDUP": "Eliminar líneas idénticas para evitar sesgos.",
+		
+		"TOKENIZER_HEADER_SYL": "Sílabas",
+		"TOKENIZER_CHK_INJECT_SYL": "Inyectar sílabas de alta frecuencia",
+		"TOKENIZER_LABEL_SYL_COUNT": "Recuento de sílabas",
 		
 		"TOKENIZER_HEADER_ADVANCED": "### Configuración Avanzada",
 		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Máximo de Oraciones (Tamaño de Muestra)",
