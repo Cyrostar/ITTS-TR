@@ -26,6 +26,7 @@ from core.core import _
 from core.database import SQLiteManager
 from core.spice import SentencePieceTrainerWrapper
 from core.normalizer import MultilingualNormalizer, MultilingualWordifier
+from core.syllabify import TurkishSyllabifier
 
 # --- HELPER FUNCTIONS ---
 
@@ -71,13 +72,19 @@ def init_db():
     # 2. Child Table: Original schema + the new flag + lang marker
     db.create_table(
         "pdf_chunks", 
-        "pdf_id INTEGER, page_number INTEGER, text TEXT, lang TEXT, is_normalized INTEGER DEFAULT 0, FOREIGN KEY(pdf_id) REFERENCES processed_pdfs(id)"
+        "pdf_id INTEGER, page_number INTEGER, lang TEXT, text TEXT, is_normalized INTEGER DEFAULT 0, FOREIGN KEY(pdf_id) REFERENCES processed_pdfs(id)"
     )
         
-    # 3. Normalized Table: Tracks chunks by unique Text AND Language pair
+    # 3. Normalized Table: Tracks chunks by unique Language AND Text pair
     db.create_table(
         "normalized_chunks",
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, lang TEXT, occurrence_count INTEGER DEFAULT 1, UNIQUE(text, lang)"
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, text TEXT, occurrence_count INTEGER DEFAULT 1, is_syllabified INTEGER DEFAULT 0, UNIQUE(lang, text)"
+    )
+    
+    # 4. Syllables Table: Tracks distinct syllables and their frequencies per language
+    db.create_table(
+        "syllables",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, syllable TEXT, frequency INTEGER DEFAULT 1, UNIQUE(lang, syllable)"
     )
     return db
 
@@ -190,17 +197,11 @@ def process_pdfs(folder_path, lang_input, chunk_size, max_workers, progress=gr.P
                     pdf_record = db.fetch_one("SELECT id FROM processed_pdfs WHERE pdf_name = ?", (pdf_file,))
                     pdf_id = pdf_record["id"]
                     
-                    db_ready_chunks = [(pdf_id, page_num, chunk, lang_input) for page_num, chunk in result]
+                    db_ready_chunks = [(pdf_id, page_num, lang_input, chunk) for page_num, chunk in result]
                     
                     if db_ready_chunks:
                         db.execute_many(
-                            "INSERT INTO pdf_chunks (pdf_id, page_number, text, lang) VALUES (?, ?, ?, ?)",
-                            db_ready_chunks
-                        )
-                    
-                    if db_ready_chunks:
-                        db.execute_many(
-                            "INSERT INTO pdf_chunks (pdf_id, page_number, text) VALUES (?, ?, ?)",
+                            "INSERT INTO pdf_chunks (pdf_id, page_number, lang, text) VALUES (?, ?, ?, ?)",
                             db_ready_chunks
                         )
                         total_chunks_inserted += len(db_ready_chunks)
@@ -275,11 +276,11 @@ def normalize_database(lang_code, max_workers, progress=gr.Progress()):
                             
                 # 4. UPSERT the normalized results directly into the database
                 if batch_counts:
-                    insert_data = [(text, lang_code, count) for text, count in batch_counts.items()]
+                    insert_data = [(lang_code, text, count) for text, count in batch_counts.items()]
                     upsert_query = """
-                        INSERT INTO normalized_chunks (text, lang, occurrence_count) 
+                        INSERT INTO normalized_chunks (lang, text, occurrence_count) 
                         VALUES (?, ?, ?) 
-                        ON CONFLICT(text, lang) DO UPDATE SET 
+                        ON CONFLICT(lang, text) DO UPDATE SET 
                         occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
                     """
                     for i in range(0, len(insert_data), 10000):
@@ -305,13 +306,127 @@ def truncate_database():
         chunks_cleared = db.truncate_table("pdf_chunks")
         pdfs_cleared = db.truncate_table("processed_pdfs")
         norm_cleared = db.truncate_table("normalized_chunks")
+        syllables_cleared = db.truncate_table("syllables")
         
-        if chunks_cleared and pdfs_cleared and norm_cleared:
+        if chunks_cleared and pdfs_cleared and norm_cleared and syllables_cleared:
             return "🗑️ ✅ Database truncated successfully. All tables have been reset."
         else:
             return "❌ Error: Failed to truncate one or more tables."
     except Exception as e:
         return f"❌ Error during truncation: {e}"
+            
+def _syllabify_worker(args):
+    """
+    Top-level worker function that extracts syllables from normalized text chunks.
+    Multiplies syllable frequency by the chunk's true corpus occurrence count.
+    """
+    lang_code, text_count_pairs = args
+    local_counts = defaultdict(int)
+    
+    # Instantiate the syllabifier locally (it does not take a lang argument)
+    # If supporting other languages later, add a dynamic class selector here
+    if lang_code == "tr":
+        syllabifier = TurkishSyllabifier() 
+    else:
+        # Fallback if non-Turkish language is selected but class is Turkish-only
+        return dict(local_counts)
+    
+    for text, count in text_count_pairs:
+        if text and text.strip():
+            try:
+                # Use process_phrase to handle multi-word text chunks
+                # It returns a list of: (word, ('syl1', 'syl2'))
+                phrase_results = syllabifier.process_phrase(text) 
+                
+                for word, syllables in phrase_results:
+                    for idx, syl in enumerate(syllables):
+                        clean_syl = str(syl).strip()
+                        if clean_syl:
+                            # Prepend the IndexTTS boundary marker to the first syllable of the word
+                            if idx == 0:
+                                clean_syl = "▁" + clean_syl
+                        if clean_syl:
+                            # Multiply by the chunk's occurrence count
+                            local_counts[clean_syl] += count 
+            except Exception:
+                continue
+                
+    return dict(local_counts)
+    
+def syllabify_database(lang_code, max_workers, progress=gr.Progress()):
+    """Reads normalized chunks, processes syllables via CPU pool, and UPSERTs frequencies."""
+    try:
+        db = init_db()
+       
+        count_record = db.fetch_one("SELECT COUNT(*) as total FROM normalized_chunks WHERE is_syllabified = 0")
+        total_remaining = count_record["total"] if count_record else 0
+        
+        if total_remaining == 0:
+            return "✅ All normalized chunks are already syllabified!"
+            
+        safe_workers = max(1, int(max_workers))
+        db_batch_size = 50000 
+        worker_chunk_size = 10000
+        
+        total_processed = 0
+        total_inserted = 0
+        last_rowid = 0
+        
+        progress(0, desc="Starting batch syllabification...")
+        
+        with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
+            
+            while True:
+                # 1. Fetch using B-Tree pagination
+                records = db.fetch_all(f"SELECT rowid as id, text, occurrence_count FROM normalized_chunks WHERE rowid > {last_rowid} AND is_syllabified = 0 LIMIT {db_batch_size}")
+                
+                if not records:
+                    break
+                    
+                last_rowid = records[-1]["id"]
+                chunk_ids = [row["id"] for row in records]
+                text_count_pairs = [(row["text"], row["occurrence_count"]) for row in records]
+                
+                # 2. Split into smaller batches for CPU workers
+                batches = [(lang_code, text_count_pairs[i:i + worker_chunk_size]) for i in range(0, len(text_count_pairs), worker_chunk_size)]
+                
+                batch_counts = defaultdict(int)
+                
+                # 3. Dispatch to worker pool
+                futures = [executor.submit(_syllabify_worker, b) for b in batches]
+                
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        local_counts = future.result()
+                        for syl, count in local_counts.items():
+                            batch_counts[syl] += count
+                    except Exception as e:
+                        print(f"⚠️ Syllabifier Worker error: {e}")
+                            
+                # 4. UPSERT syllables to database safely
+                if batch_counts:
+                    insert_data = [(lang_code, syl, count) for syl, count in batch_counts.items()]
+                    upsert_query = """
+                        INSERT INTO syllables (lang, syllable, frequency) 
+                        VALUES (?, ?, ?) 
+                        ON CONFLICT(lang, syllable) DO UPDATE SET 
+                        frequency = syllables.frequency + excluded.frequency
+                    """
+                    for i in range(0, len(insert_data), 10000):
+                        db.execute_many(upsert_query, insert_data[i:i + 10000])
+                    total_inserted += len(insert_data)
+                    
+                # 5. Checkpoint: Mark normalized chunks as syllabified
+                update_data = [(cid,) for cid in chunk_ids]
+                db.execute_many("UPDATE normalized_chunks SET is_syllabified = 1 WHERE rowid = ?", update_data)
+                
+                total_processed += len(chunk_ids)
+                progress(total_processed / total_remaining, desc=f"Syllabified {total_processed}/{total_remaining} chunks...")
+            
+        return f"✅ Syllabification complete! Processed {total_processed:,} chunks and extracted/updated {total_inserted:,} distinct syllable blocks."
+        
+    except Exception as e:
+        return f"❌ Error during syllabification: {e}"
 
 def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_sentences, train_extremely, norm_rule, hard_vocab, progress=gr.Progress()):
     """Trains SentencePiece from the pre-normalized unique text chunks for a specific language."""
@@ -333,6 +448,13 @@ def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_
         
         if not text_stream:
             return f"❌ Error: The extracted text stream is totally empty after formatting."
+            
+        # Fetch the top 1000 highest frequency syllables for the target language
+        syl_records = db.fetch_all("SELECT syllable FROM syllables WHERE lang = ? ORDER BY frequency DESC LIMIT 1000", (lang_code,))
+        forced_syllables = [row["syllable"] for row in syl_records if row["syllable"]]
+        
+        if forced_syllables:
+            print(f"💉 Forcing {len(forced_syllables)} high-frequency syllables into the base vocabulary...")
         
         # 1. Initialize ITTS SentencePiece Trainer Wrapper
         trainer = SentencePieceTrainerWrapper(
@@ -342,7 +464,8 @@ def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_
             normalization_rule_name=norm_rule,                  # Bypass SPM's internal normalizer ("identity")
             train_extremely_large_corpus=bool(train_extremely), # Activate C++ memory optimizations
             input_sentence_size=int(sentence_size),             # Randomly sample X million chunks
-            shuffle_input_sentence=bool(shuffle_sentences)      # Ensure a uniform linguistic distribution
+            shuffle_input_sentence=bool(shuffle_sentences),     # Ensure a uniform linguistic distribution
+            user_defined_symbols=forced_syllables               # ⚡ LOCKS SYLLABLES INTO VOCAB
         )
         
         progress(0.5, desc="Executing C++ SPM Training (This will take a while)...")
@@ -355,7 +478,7 @@ def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_
         
         progress(0.9, desc="Cleaning up temporary files...")
         
-        import gc
+        # 3. Garbage collection
         gc.collect()
                
         # 4. Prevent False-Positive Success Messages
@@ -502,13 +625,13 @@ def process_and_add_workspace_files(lang_code, chunk_size, progress=gr.Progress(
     progress(0.9, desc="Saving directly to database...")
     ui_logs.append(f"✨ Extracted {len(local_counts)} unique normalized chunks. Upserting to database...")
     
-    insert_data = [(text, lang_code, count) for text, count in local_counts.items()]
+    insert_data = [(lang_code, text, count) for text, count in local_counts.items()]
     
-    # Use UPSERT to elegantly aggregate duplicates based on the (text, lang) UNIQUE constraint
+    # Use UPSERT to elegantly aggregate duplicates based on the (lang, text) UNIQUE constraint
     upsert_query = """
-        INSERT INTO normalized_chunks (text, lang, occurrence_count) 
+        INSERT INTO normalized_chunks (lang, text, occurrence_count) 
         VALUES (?, ?, ?) 
-        ON CONFLICT(text, lang) DO UPDATE SET 
+        ON CONFLICT(lang, text) DO UPDATE SET 
         occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
     """
     
@@ -568,8 +691,8 @@ def run_ytdlp(url):
     exe_path = os.getenv("ARTHA_YT_DIP_DIR")
     
     if not exe_path:
-        return "❌ Error: 'ARTHA_YT-DIP_DIR' environment variable is not set."
-        
+        return "❌ Error: 'ARTHA_YT_DIP_DIR' environment variable is not set."
+       
     exe_file = os.path.join(exe_path, "yt-dlp_x86.exe")
     
     if not os.path.exists(exe_file):
@@ -725,10 +848,15 @@ def transcribe_audio_ui(audio_input, model_size, use_normalizer, single_paragrap
         progress(1.0, desc="Done!")
         
         # Toggle between Single Paragraph vs Line-by-Line
-        if single_paragraph:
-            return " ".join(processed_lines)
-        else:
-            return "\n".join(processed_lines)
+        final_text = " ".join(processed_lines) if single_paragraph else "\n".join(processed_lines)
+        
+        # Clean up VRAM to prevent OOM on subsequent tool usage
+        del model
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
+            
+        return final_text
 
     except Exception as e:
         return f"❌ Transcription Error: {str(e)}"
@@ -806,6 +934,16 @@ def diarization_audio_ui(input_file, trim_silence, gap_seconds, min_spks, max_sp
             generated_files.append(save_path)
             print(f"✅ Exported {spk_id}")
     
+    # Clean up Pyannote Pipeline and Tensors from VRAM
+    del pipeline
+    del waveform
+    del resampler
+    if silence_buffer is not None:
+        del silence_buffer
+    gc.collect()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+        
     first_audio_preview = generated_files[0] if generated_files else None
     # Return the full list of files to the gr.File component
     return first_audio_preview, generated_files
@@ -953,7 +1091,31 @@ def create_demo():
                 with gr.Row():
                     norm_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_NORM_STATUS"), interactive=False, lines=2)
 
-            # --- TAB 3: Tokenizer ---
+            # --- TAB 3: Syllabifier
+            with gr.Tab(_("CORPUS_DB_TAB_SYL")):
+                gr.Markdown(_("CORPUS_DB_DESC_SYL"))
+                
+                with gr.Row():
+                    syl_lang_input = gr.Dropdown(
+                        label=_("COMMON_LABEL_LANG"), 
+                        choices=lang_options,
+                        value="tr"
+                    )
+                    worker_input_syl = gr.Slider(
+                        label=_("CORPUS_DB_LABEL_WORKERS"), 
+                        minimum=1, 
+                        maximum=multiprocessing.cpu_count(), 
+                        value=max(1, multiprocessing.cpu_count() // 2), 
+                        step=1
+                    ) 
+                    
+                with gr.Row():
+                    syl_btn = gr.Button(_("CORPUS_DB_BTN_SYL"), variant="primary")
+                    
+                with gr.Row():
+                    syl_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_SYL_STATUS"), interactive=False, lines=2)
+            
+            # --- TAB 4: Tokenizer ---
             with gr.Tab(_("CORPUS_DB_TAB_TOK")):
                 gr.Markdown(_("CORPUS_DB_DESC_TOK"))
                 
@@ -1206,6 +1368,7 @@ def create_demo():
         process_btn.click(fn=process_pdfs, inputs=[folder_input, lang_input, chunk_input, worker_input], outputs=db_output_log)
         truncate_btn.click(fn=truncate_database, inputs=None, outputs=db_output_log)
         norm_btn.click(fn=normalize_database, inputs=[lang_input, worker_input_norm], outputs=norm_output_log)
+        syl_btn.click(fn=syllabify_database, inputs=[syl_lang_input, worker_input_syl], outputs=syl_output_log)
         train_btn.click(
             fn=train_tokenizer, 
             inputs=[vocab_input, prefix_input, tok_lang_input, tok_sentence_size, tok_shuffle, tok_train_ext, tok_norm_rule, tok_hard_vocab], 

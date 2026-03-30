@@ -36,9 +36,9 @@ def list_datasets(lang):
         if os.path.isdir(os.path.join(ds_path, d))
     ])
     
-def load_text_from_corpus():
+def load_text_from_corpus(lang_code=None):
     """
-    Reads unique text chunks from the unified corpus database.
+    Reads unique text chunks from the unified corpus database, optionally filtered by language.
     """
     texts = []
     db_path = os.path.join(core.corpus_directory(), "corpus.db")
@@ -49,7 +49,11 @@ def load_text_from_corpus():
 
     try:
         db = SQLiteManager(db_path)
-        records = db.fetch_all("SELECT text FROM normalized_chunks WHERE text IS NOT NULL")
+        if lang_code:
+            records = db.fetch_all("SELECT text FROM normalized_chunks WHERE text IS NOT NULL AND lang = ?", (lang_code,))
+        else:
+            records = db.fetch_all("SELECT text FROM normalized_chunks WHERE text IS NOT NULL")
+            
         for row in records:
             chunk = row["text"].strip()
             if chunk:
@@ -133,6 +137,8 @@ def train_tokenizer_ui(
     train_extremely,
     shuffle_sentences,
     hard_vocab,
+    inject_syllables,
+    syllable_count,
     progress=gr.Progress()
 ):
     logs = []
@@ -188,7 +194,7 @@ def train_tokenizer_ui(
         
         # Force load corpus
         yield log("📚 Reading corpus/corpus.txt ...")
-        corpus_texts = load_text_from_corpus()
+        corpus_texts = load_text_from_corpus(lang)
         yield log(f"   - Corpus lines: {len(corpus_texts)}")
         
     else:
@@ -211,7 +217,7 @@ def train_tokenizer_ui(
         
         if include_corpus:
             yield log("📚 Reading corpus/corpus.txt ...")
-            corpus_texts = load_text_from_corpus()
+            corpus_texts = load_text_from_corpus(lang)
             yield log(f"   - Corpus lines: {len(corpus_texts)}")
         else:
             yield log("⏭️ Skipping corpus file.")
@@ -242,12 +248,12 @@ def train_tokenizer_ui(
             if os.path.exists(db_path):
                 db = SQLiteManager(db_path)
                 upsert_query = """
-                    INSERT INTO normalized_chunks (text, occurrence_count) 
-                    VALUES (?, ?) 
-                    ON CONFLICT(text) DO UPDATE SET 
+                    INSERT INTO normalized_chunks (lang, text, occurrence_count) 
+                    VALUES (?, ?, ?) 
+                    ON CONFLICT(lang, text) DO UPDATE SET 
                     occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
                 """
-                db.execute_write(upsert_query, (extra_text_processed, 1))
+                db.execute_write(upsert_query, (lang, extra_text_processed, 1))
         except Exception as e:
             yield log(f"⚠️ Warning: Could not append injected text to corpus DB: {e}")
 
@@ -380,16 +386,36 @@ def train_tokenizer_ui(
     if special_tokens_str:
         user_symbols.extend([x.strip() for x in special_tokens_str.split("|") if x.strip()])
         yield log(f"✨ Found {len(user_symbols)} Special Tokens")
+        
+    # 10. Inject High-Frequency Syllables
+    if inject_syllables and int(syllable_count) > 0:
+        try:
+            db_path = os.path.join(core.corpus_directory(), "corpus.db")
+            if os.path.exists(db_path):
+                db = SQLiteManager(db_path)
+                syl_records = db.fetch_all("SELECT syllable FROM syllables WHERE lang = ? ORDER BY frequency DESC LIMIT ?", (lang, int(syllable_count)))
+                forced_syllables = [row["syllable"] for row in syl_records if row["syllable"]]
+                
+                if forced_syllables:
+                    # Append strictly unique syllables to the training array
+                    for s in forced_syllables:
+                        if s not in user_symbols:
+                            user_symbols.append(s)
+                    yield log(f"💉 Injected {len(forced_syllables)} high-frequency syllables into the vocabulary.")
+                else:
+                    yield log("⚠️ No syllables found for this language. Run the Syllabifier first.")
+            else:
+                yield log("⚠️ corpus.db not found. Cannot inject syllables.")
+        except Exception as e:
+            yield log(f"❌ Error fetching syllables: {e}")
 
-    # 10. Apply Casing
+    # 11. Apply Casing
     if case_rule == "uppercase":
         user_symbols = [sym.upper() for sym in user_symbols]
         yield log(f"🔠 Converted {len(user_symbols)} Special Tokens to uppercase")
-
-    # 11. Stream Directly from RAM (Bypassing Disk I/O)
-    yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     
     # 12. Train SentencePiece
+    yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     yield log(f"🧠 Training BPE Tokenizer (Vocab: {vocab_size}, Coverage: {char_coverage})...")
         
     try:
@@ -1369,6 +1395,11 @@ def create_demo():
                     value="",
                     placeholder="€ | £ | ¥ | ₺ | ₿ | ± | × | ÷ | ≠ | ≤ | ≥ | ∞ | √ | ∑ | ∏ | π | ∆ | ∂ | µ | Ω"
                 )
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_SYL"))
+                tok_inject_syl = gr.Checkbox(label=_("TOKENIZER_CHK_INJECT_SYL"), value=False)
+                tok_syl_count = gr.Number(label=_("TOKENIZER_LABEL_SYL_COUNT"), value=1000, precision=0)
             
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_ADVANCED")) 
@@ -1440,7 +1471,9 @@ def create_demo():
             tok_sentence_size,
             tok_train_ext,
             tok_shuffle,
-            tok_hard_vocab
+            tok_hard_vocab,
+            tok_inject_syl,
+            tok_syl_count
         ]
        
         # Train Click
