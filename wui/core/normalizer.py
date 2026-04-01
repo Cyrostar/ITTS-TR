@@ -273,6 +273,14 @@ class TurkishWordifier(BaseWordifier):
         # 1. Unicode Normalization
         text = unicodedata.normalize("NFC", text)
         
+        encoding_fix_map = {
+            'ý': 'ı', 'Ý': 'İ',
+            'ð': 'ğ', 'Ð': 'Ğ',
+            'þ': 'ş', 'Þ': 'Ş'
+        }
+        for bad, good in encoding_fix_map.items():
+            text = text.replace(bad, good)
+        
         # 2. Expand Abbreviations
         if self.abbreviations:
             for pattern, replacement in self._ABBREV_PATTERNS:
