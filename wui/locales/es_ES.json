@@ -326,7 +326,7 @@
 		"TOKENIZER_CHK_DEDUP": "♻️ Deduplicar Datos",
 		"TOKENIZER_INFO_DEDUP": "Eliminar líneas idénticas para evitar sesgos.",
 		
-		"TOKENIZER_HEADER_SYL": "Sílabas",
+		"TOKENIZER_HEADER_SYL": "### Sílabas",
 		"TOKENIZER_CHK_INJECT_SYL": "Inyectar sílabas de alta frecuencia",
 		"TOKENIZER_LABEL_SYL_COUNT": "Recuento de sílabas",
 		

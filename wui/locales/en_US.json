@@ -307,7 +307,7 @@
 		"TOKENIZER_HEADER_SPECIAL": "### Add Special Tokens",
 		"TOKENIZER_LABEL_SPECIAL": "Special Tokens",
 		
-		"TOKENIZER_HEADER_SYL": "Syllables",
+		"TOKENIZER_HEADER_SYL": "### Syllables",
 		"TOKENIZER_CHK_INJECT_SYL": "Inject High-Frequency Syllables",
 		"TOKENIZER_LABEL_SYL_COUNT": "Syllable Count",
 		

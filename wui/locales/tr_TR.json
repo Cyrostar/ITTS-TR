@@ -326,7 +326,7 @@
 		"TOKENIZER_CHK_DEDUP": "♻️ Verileri Tekilleştir",
 		"TOKENIZER_INFO_DEDUP": "Yanlılığı önlemek için birbirinin aynısı olan satırları kaldırır.",
 		
-		"TOKENIZER_HEADER_SYL": "Heceler",
+		"TOKENIZER_HEADER_SYL": "### Heceler",
 		"TOKENIZER_CHK_INJECT_SYL": "Yüksek Frekanslı Heceleri Enjekte Et",
 		"TOKENIZER_LABEL_SYL_COUNT": "Hece Sayısı",
 		
