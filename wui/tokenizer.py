@@ -139,6 +139,8 @@ def train_tokenizer_ui(
     hard_vocab,
     inject_syllables,
     syllable_count,
+    inject_wrd,
+    wrd_count,
     progress=gr.Progress()
 ):
     logs = []
@@ -408,13 +410,35 @@ def train_tokenizer_ui(
                 yield log("⚠️ corpus.db not found. Cannot inject syllables.")
         except Exception as e:
             yield log(f"❌ Error fetching syllables: {e}")
+            
+    # 11. Inject High-Frequency Words
+    if inject_wrd and int(wrd_count) > 0:
+        try:
+            db_path = os.path.join(core.corpus_directory(), "corpus.db")
+            if os.path.exists(db_path):
+                db = SQLiteManager(db_path)
+                word_records = db.fetch_all("SELECT word FROM words WHERE lang = ? ORDER BY frequency DESC LIMIT ?", (lang, int(wrd_count)))
+                forced_words = [row["word"] for row in word_records if row["word"]]
+                
+                if forced_words:
+                    # Append strictly unique words to the training array
+                    for w in forced_words:
+                        if w not in user_symbols:
+                            user_symbols.append(w)
+                    yield log(f"💉 Injected {len(forced_words)} high-frequency words into the vocabulary.")
+                else:
+                    yield log("⚠️ No words found for this language. Run the Word Extractor first.")
+            else:
+                yield log("⚠️ corpus.db not found. Cannot inject words.")
+        except Exception as e:
+            yield log(f"❌ Error fetching words: {e}")
 
-    # 11. Apply Casing
+    # 12. Apply Casing
     if case_rule == "uppercase":
         user_symbols = [sym.upper() for sym in user_symbols]
         yield log(f"🔠 Converted {len(user_symbols)} Special Tokens to uppercase")
     
-    # 12. Train SentencePiece
+    # 13. Train SentencePiece
     yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     yield log(f"🧠 Training BPE Tokenizer (Vocab: {vocab_size}, Coverage: {char_coverage})...")
         
@@ -1400,6 +1424,11 @@ def create_demo():
                 gr.Markdown(_("TOKENIZER_HEADER_SYL"))
                 tok_inject_syl = gr.Checkbox(label=_("TOKENIZER_CHK_INJECT_SYL"), value=False)
                 tok_syl_count = gr.Number(label=_("TOKENIZER_LABEL_SYL_COUNT"), value=1000, precision=0)
+                
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_WRD"))
+                tok_inject_wrd = gr.Checkbox(label=_("TOKENIZER_CHK_INJECT_WRD"), value=False)
+                tok_wrd_count = gr.Number(label=_("TOKENIZER_LABEL_WRD_COUNT"), value=1000, precision=0)
             
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_ADVANCED")) 
@@ -1473,7 +1502,9 @@ def create_demo():
             tok_shuffle,
             tok_hard_vocab,
             tok_inject_syl,
-            tok_syl_count
+            tok_syl_count,
+            tok_inject_wrd,
+            tok_wrd_count
         ]
        
         # Train Click
