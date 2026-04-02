@@ -356,6 +356,8 @@
 		"TOKENIZER_INFO_ADV_SHUFFLE": "Toma muestras aleatorias para garantizar la diversidad del vocabulario.",
 		"TOKENIZER_CHK_ADV_HARD_VOCAB": "Límite Estricto de Vocabulario",
 		"TOKENIZER_INFO_ADV_HARD_VOCAB": "Impone estrictamente el tamaño de vocabulario solicitado sin relleno (padding).",
+		"TOKENIZER_CHK_ADV_BYTE_FALLBACK": "Habilitar Byte Fallback",
+		"TOKENIZER_INFO_ADV_BYTE_FALLBACK": "Descompone caracteres desconocidos en bytes UTF-8 en lugar de &lt;unk&gt;.",
 		
 		"TOKENIZER_BTN_TRAIN": "🚀 Entrenar Tokenizador",
 		"TOKENIZER_LABEL_LOGS": "Registros",
