@@ -10,58 +10,46 @@ Before training, you must define the textual foundation the tokenizer will learn
 
 - **Metadata Coverage:** A slider (10% - 100%) that allows you to sample a specific percentage of your dataset's metadata for training. Useful for rapid prototyping on massive datasets.
 
-- **Include Unified Corpus Text:** Appends the contents of `corpus/corpus.txt` to your dataset metadata.
+- **Include Unified Corpus Text:** Appends the contents of your `corpus.db` database to your dataset metadata.
 
-- **Train Only With Corpus Text:** Ignores the dataset metadata entirely and trains exclusively on the `corpus.txt` file.
+- **Train Only With Corpus Text:** Ignores the dataset metadata entirely and trains exclusively on the `corpus.db` database.
 
 #### 🧠 2. Vocabulary & Coverage Configuration
 
 - **Vocabulary Size:** Determines the maximum number of unique tokens (subwords/words) the model can memorize. The slider ranges from 2,000 to 30,000, with a default of 12,000. *Engineering Note: Selecting a dataset will automatically attempt to sync this value with the `number_text_tokens` defined in your project's `config.yaml`.*
 
-- **Character Coverage:** Defines the percentage of characters to retain from the raw text (0.99 to 1.0). Setting this to 1.0 ensures all rare characters (like Q, W, X in Turkish datasets) are kept.
+- **Character Coverage:** Defines the percentage of raw character variations to encompass within the model. The default is `1.0` (100%).
 
-#### 🔣 3. Special Tokens & Characters
+#### 🏷️ 3. Special Tokens & Tags
+- **Style & Emotion Tags:** Automatically injects predefined conversational, narrative, and emotional state tags (e.g., `[happy]`, `[whisper]`, `[podcast]`) to teach the acoustic model highly expressive delivery boundaries.
+- **Alphabet Extensions:** Checkboxes to explicitly force the tokenizer to memorize standard English letters, Turkic extended characters, Turkish long vowels (e.g., `â`, `î`), and standard punctuation marks.
+- **Custom Special Tokens:** A text field where you can define specific symbols, currencies, or characters (separated by `|`) to manually lock into the vocabulary.
 
-A robust TTS tokenizer requires explicit awareness of punctuation, structural tags, and specific alphabetic edge cases.
+#### 💉 4. Phonetic & Linguistic Injections
+These core features bypass the statistical BPE algorithm. They force the Tokenizer to permanently lock specific linguistic units into its vocabulary matrix, guaranteeing perfect acoustic alignment during TTS synthesis.
 
-- **Special Tokens:** A text field to manually introduce custom symbols (e.g., currency, math operators) separated by the pipe `|` character.
+- **Inject High-Frequency Syllables:** Queries your compiled `corpus.db` for the absolute most common syllables across your datasets (governed by the **Syllable Count** value) and locks them in. This provides strict phonetic anchors that drastically reduce slurring and skipped audio artifacts.
+- **Inject High-Frequency Words:** Queries the database for the most frequent whole words (governed by the **Word Count** value). Hardcoding frequent words allows the model to learn their distinct, natural prosody (rhythm and intonation) as a single acoustic embedding, rather than stitching them together robotically.
+- **Vocabulary Capacity Engine:** The system dynamically calculates if your forced injections (tags + syllables + words) leave enough mandatory space (at least 256 slots) for the basic linguistic alphabet and control bytes. It will safely halt the pipeline if it detects a vocabulary overflow risk.
 
-- **Character Injection Checkboxes:** Explicitly force the tokenizer to recognize specific character sets to prevent them from becoming `<unk>` (unknown) tokens:
-  
-  - Turkish characters (ç, ğ, ö, ş, ü).
-  
-  - English characters (q, w, x).
-  
-  - Turkic characters (ə, ұ, қ).
-  
-  - Long vowels (â, î, û).
-  
-  - Punctuation (. , ? ! ' : ; ...).
-
-- **Automated Tag Injection:** Note that behind the scenes, the system automatically injects a comprehensive suite of style tags (e.g., `[casual]`, `[podcast]`) and emotion tags (e.g., `[happy]`, `[whisper]`) directly into the tokenizer vocabulary.
-
-#### ⚙️ 4. Normalization & Augmentation
-
-- **Normalization Rule:** Configures SentencePiece's internal normalizer (`nmt_nfkc`, `nfkc`, `none`, etc.). *Note: The text is already heavily normalized by the internal `TurkishWalnutNormalizer` prior to reaching SentencePiece.*
-
-- **💉 Inject Word Samples:** Activating this injects common Turkish words into the training data to heavily influence the BPE algorithm toward creating whole-word tokens rather than sub-word fragments. The severity is controlled by the **Injection Multiplier** slider (1-100).
-
-- **♻️ Deduplicate Data:** Removes identical duplicate lines from the training pool, preventing the tokenizer from heavily biasing toward repeated phrases.
+#### ⚙️ 5. Advanced Training Rules
+- **Normalization & Casing:** Determine whether to bypass the SPM internal normalizer (`identity` rule) and whether to force your vocabulary into strict uppercase or lowercase formats.
+- **Max Sentences (Sample Size):** Limits RAM usage on massive datasets by capping the parsed lines. Set to 0 to use all available sentences.
+- **Train Extremely Large Corpus:** Engages C++ memory optimizations for parsing multi-gigabyte training streams.
+- **Shuffle Corpus:** Randomizes the parsed input streams to ensure a uniform linguistic distribution.
+- **Hard Vocab Limit:** Strictly enforces the requested vocabulary size without padding the trailing space.
 
 ### 🧰 Utilities
 
 These diagnostic tools allow you to validate your text processing pipeline before committing to acoustic model training.
 
-#### 🖊️ Turkish Tokenizer Safety Check
+#### 🎗️ Tokenizer Safety Check
 
-An automated validation suite for trained SentencePiece `.model` files.
+An automated validation suite to check tokenizer suitability for TTS.
 
-- Upload your trained model to verify it successfully captures standard `a-z` characters.
-
-- It tests explicit mapping of special Turkish characters (e.g., `Ç` → `ç`) based on your normalization rules.
-
+- Upload your trained SentencePiece `.model` file to verify it successfully captures standard characters.
+- It tests explicit mapping of special characters based on your normalization and casing rules.
 - It checks for the presence of detrimental byte-fallback tokens.
-
 - It executes sample tokenization on complex words to ensure no `<unk>` tokens are generated.
 
 #### 💱 Tokenizer Tester
@@ -69,21 +57,35 @@ An automated validation suite for trained SentencePiece `.model` files.
 A direct inference tool to visualize how your model breaks down text.
 
 - Input raw text to see exactly how the active project's tokenizer splits it into subwords.
-
+- Test both Standard (trained) and Merged model states.
 - Outputs the total token count and a detailed array of `[ID] Piece` pairs.
 
-#### 🫧 Turkish Walnut Normalizer
+#### 📚 Multilingual Wordifier
 
-Tests the raw text preprocessing logic.
+Tests numeric/date expansion and unique word extraction logic.
+
+- Input text containing complex structures like numbers, dates, or abbreviations (e.g., "19.05.1919" or "2.500").
+- **Return Format:** Toggle between "Full Block" (the expanded sentence) or "Word List" (a comma-separated array of the extracted words).
+
+#### 🫧 Multilingual Normalizer
+
+Tests the preprocessing logic on raw text.
 
 - Input messy text containing mixed casing, punctuation errors, or special symbols.
+- The output reveals exactly how the acoustic model will "read" the text after normalization rules and abbreviation expansions are applied.
 
-- The output reveals exactly how the acoustic model will "read" the text after normalization rules are applied.
+#### ✂️ Turkish Syllabifier
 
-#### 📚 Turkish Textblock Wordifier
+Tests the Turkish syllabification, stress marking, and harmony algorithms.
 
-Validates numerical and date expansion.
+- Input Turkish text to see how the system programmatically breaks it down into distinct phonetic syllables.
+- Toggle advanced linguistic checks like stress markers, vowel harmony validation, and a detailed word-by-word analysis mode.
 
-- Input text containing numbers (e.g., "19.05.1919" or "2.500").
+#### 🎨 Design Custom Model
 
-- **Return Format:** Toggle between "Full Block" (the expanded sentence) or "Word List" (a comma-separated array of the extracted words).
+A powerful visual interface to design a custom model from the original (Source) and the trained (Target) tokenizer models.
+
+- Upload a target model to merge into the official baseline model.
+- **Source Configuration:** Strip out unwanted elements from the base model like language markers, CJK tokens, English tokens, or source punctuation. You can also force lowercase conversion and inject required structural tokens.
+- **Target Configuration:** Define exactly how the new model merges into the base. Choose whether to preserve standalone letters and punctuation, and strictly enforce the token casing rules.
+- Provides a direct side-by-side output of the processed Source Vocab, processed Target Vocab, and the final Merged Output.
