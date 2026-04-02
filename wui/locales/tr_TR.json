@@ -126,12 +126,25 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Verileri Normalize Et ve Tekilleştir",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalizasyon Durumu",
 		
-		"CORPUS_DB_TAB_SYL": "3. TXT Metin Hecelendirici",
+		"CORPUS_DB_TAB_WORD": "3. Kelime Çıkarıcı",
+		"CORPUS_DB_DESC_WORD": "Normalleştirilmiş parçalardan farklı kelimeleri çıkarır ve sözlük hizalaması için veritabanında saklar.",
+		"CORPUS_DB_BTN_WORD": "Kelimeleri Çıkar",
+		"CORPUS_DB_LABEL_WORD_STATUS": "Kelime Çıkarma Durumu",
+		
+		"CORPUS_DB_TAB_SYL": "4. Metin Hecelendirici",
 		"CORPUS_DB_DESC_SYL": "TTS Süre modellemesi için dilbilimsel bir frekans dağılımı oluşturmak amacıyla normalleştirilmiş metin parçalarından heceleri çıkarır.",
 		"CORPUS_DB_BTN_SYL": "Heceleri Çıkar",
 		"CORPUS_DB_LABEL_SYL_STATUS": "Durum Günlüğü",
 		
-		"CORPUS_DB_TAB_TOK": "4. SPM Simgeleştirici Sınayıcı",
+		"CORPUS_DB_TAB_STATS": "5. Kelime Dağarcığı İstatistikleri",
+		"CORPUS_DB_DESC_STATS": "En sık kullanılan ilk 10 kelime ve heceyi görüntüleyin, ve en iyi 2000'i JSON formatında dışa aktarın.",
+		"CORPUS_DB_BTN_STATS_REFRESH": "🔄 İstatistikleri Yenile",
+		"CORPUS_DB_LABEL_STATS_WORDS": "En Sık 10 Kelime",
+		"CORPUS_DB_LABEL_STATS_SYL": "En Sık 10 Hece",
+		"CORPUS_DB_BTN_STATS_SAVE": "💾 Verileri Kaydet (İlk 2000 JSON Olarak)",
+		"CORPUS_DB_LABEL_STATS_STATUS": "Dışa Aktarma Durumu",
+		
+		"CORPUS_DB_TAB_TOK": "6. SPM Simgeleştirici Sınayıcı",
 		"CORPUS_DB_DESC_TOK": "Önceden normalize edilmiş benzersiz metin parçalarından anında bir SentencePiece BPE modeli eğitir.",
 		"CORPUS_DB_LABEL_VOCAB": "Sözlük Boyutu",
 		"CORPUS_DB_LABEL_PREFIX": "Model Öneki (Prefix)",

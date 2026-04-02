@@ -126,12 +126,25 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Normalizar y Deduplicar Datos",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Estado de Normalización",
 		
-		"CORPUS_DB_TAB_SYL": "3. Silabeador de Texto",
+		"CORPUS_DB_TAB_WORD": "3. Extractor de Palabras",
+		"CORPUS_DB_DESC_WORD": "Extrae palabras distintas de los fragmentos normalizados y las almacena en la base de datos para la alineación del diccionario.",
+		"CORPUS_DB_BTN_WORD": "Extraer Palabras",
+		"CORPUS_DB_LABEL_WORD_STATUS": "Estado de Extracción de Palabras",
+		
+		"CORPUS_DB_TAB_SYL": "4. Silabeador de Texto",
 		"CORPUS_DB_DESC_SYL": "Extrae sílabas de fragmentos de texto normalizados para construir una distribución de frecuencia lingüística para el modelado de duración TTS.",
 		"CORPUS_DB_BTN_SYL": "Extraer Sílabas",
 		"CORPUS_DB_LABEL_SYL_STATUS": "Registro de Estado",
 		
-		"CORPUS_DB_TAB_TOK": "4. Tokenizador",
+		"CORPUS_DB_TAB_STATS": "5. Estadísticas de Vocabulario",
+		"CORPUS_DB_DESC_STATS": "Vea las 10 palabras y sílabas más frecuentes, y exporte las 2000 principales en formato JSON.",
+		"CORPUS_DB_BTN_STATS_REFRESH": "🔄 Actualizar Estadísticas",
+		"CORPUS_DB_LABEL_STATS_WORDS": "Top 10 Palabras",
+		"CORPUS_DB_LABEL_STATS_SYL": "Top 10 Sílabas",
+		"CORPUS_DB_BTN_STATS_SAVE": "💾 Guardar Datos (Top 2000 a JSON)",
+		"CORPUS_DB_LABEL_STATS_STATUS": "Estado de Exportación",
+		
+		"CORPUS_DB_TAB_TOK": "6. Tokenizador",
 		"CORPUS_DB_DESC_TOK": "Entrena instantáneamente un modelo SentencePiece BPE a partir de fragmentos de texto únicos pre-normalizados.",
 		"CORPUS_DB_LABEL_VOCAB": "Tamaño del Vocabulario",
 		"CORPUS_DB_LABEL_PREFIX": "Prefijo del Modelo",

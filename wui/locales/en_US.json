@@ -126,12 +126,25 @@
 		"CORPUS_DB_BTN_NORMALIZE": "✨ Normalize & Deduplicate Data",
 		"CORPUS_DB_LABEL_NORM_STATUS": "Normalization Status",
 		
-		"CORPUS_DB_TAB_SYL": "3. TXT Chunks Syllabifier",
+		"CORPUS_DB_TAB_WORD": "3. Word Extractor",
+		"CORPUS_DB_DESC_WORD": "Extracts distinct words from normalized chunks and stores them in the database for dictionary alignment.",
+		"CORPUS_DB_BTN_WORD": "Extract Words",
+		"CORPUS_DB_LABEL_WORD_STATUS": "Word Extraction Status",
+		
+		"CORPUS_DB_TAB_SYL": "4. Word Syllabifier",
 		"CORPUS_DB_DESC_SYL": "Extracts syllables from normalized text chunks to build a linguistic frequency distribution for TTS Duration modeling.",
 		"CORPUS_DB_BTN_SYL": "Extract Syllables",
 		"CORPUS_DB_LABEL_SYL_STATUS": "Status Logging",
 		
-		"CORPUS_DB_TAB_TOK": "4. SPM Tokenizer Test",
+		"CORPUS_DB_TAB_STATS": "5. Vocabulary Statistics",
+		"CORPUS_DB_DESC_STATS": "View the top 10 most frequent words and syllables, and export the top 2000 to JSON format.",
+		"CORPUS_DB_BTN_STATS_REFRESH": "🔄 Refresh Stats",
+		"CORPUS_DB_LABEL_STATS_WORDS": "Top 10 Words",
+		"CORPUS_DB_LABEL_STATS_SYL": "Top 10 Syllables",
+		"CORPUS_DB_BTN_STATS_SAVE": "💾 Save Data (Top 2000 to JSON)",
+		"CORPUS_DB_LABEL_STATS_STATUS": "Export Status",
+		
+		"CORPUS_DB_TAB_TOK": "6. SPM Tokenizer Test",
 		"CORPUS_DB_DESC_TOK": "Trains a SentencePiece BPE model instantly from the pre-normalized, unique text chunks.",
 		"CORPUS_DB_LABEL_VOCAB": "Vocab Size",
 		"CORPUS_DB_LABEL_PREFIX": "Model Prefix",
