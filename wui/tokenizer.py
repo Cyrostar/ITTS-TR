@@ -137,6 +137,7 @@ def train_tokenizer_ui(
     train_extremely,
     shuffle_sentences,
     hard_vocab,
+    byte_fallback,
     inject_syllables,
     syllable_count,
     inject_wrd,
@@ -469,6 +470,7 @@ def train_tokenizer_ui(
             model_type="bpe",
             character_coverage=float(char_coverage),
             user_defined_symbols=user_symbols,
+            byte_fallback=bool(byte_fallback),
             split_digits=True,
             normalization_rule_name="identity" if norm_rule == "none" else norm_rule,
             hard_vocab_limit=bool(hard_vocab),
@@ -1472,7 +1474,12 @@ def create_demo():
                     label=_("TOKENIZER_CHK_ADV_HARD_VOCAB"), 
                     value=False, 
                     info=_("TOKENIZER_INFO_ADV_HARD_VOCAB")
-                )                  
+                )
+                tok_byte_fallback = gr.Checkbox(
+                    label=_("TOKENIZER_CHK_ADV_BYTE_FALLBACK"), 
+                    value=False, 
+                    info=_("TOKENIZER_INFO_ADV_BYTE_FALLBACK")
+                )                
                       
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
@@ -1521,6 +1528,7 @@ def create_demo():
             tok_train_ext,
             tok_shuffle,
             tok_hard_vocab,
+            tok_byte_fallback,
             tok_inject_syl,
             tok_syl_count,
             tok_inject_wrd,
