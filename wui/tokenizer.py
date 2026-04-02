@@ -150,7 +150,8 @@ def train_tokenizer_ui(
 
     # 1. Validate Inputs
     if not use_only_corpus and not dataset_name:
-        return log("❌ Error: No dataset selected!")
+        yield log("❌ Error: No dataset selected!")
+        return
 
     # 2. Setup Paths & Sync Config
     out_dir = core.tokenizer_directory()
@@ -180,112 +181,24 @@ def train_tokenizer_ui(
         yield log(f"⚠️ No config.yaml found in project! Training with {vocab_size}, but config was not updated.")
 
     # Debug logs
-    if dataset_name:
+    if use_only_corpus:
+        yield log("📚 Dataset Bypassed: Training exclusively with the Corpus Database.")
+    elif dataset_name:
         yield log(f"🔍 Selected Dataset: {dataset_name}")
     else:
         yield log("ℹ️ No Dataset Selected (Using generic name)")
         
     yield log(f"💾 Output Model: {model_prefix}")
-
-    metadata_texts = []
-    corpus_texts = []
-
-    # 3. Branching Logic for Data Loading
-    if use_only_corpus:
-        yield log("⚠️ Mode: ONLY CORPUS (Ignoring Dataset Metadata)")
-        
-        # Force load corpus
-        yield log("📚 Reading corpus/corpus.txt ...")
-        corpus_texts = load_text_from_corpus(lang)
-        yield log(f"   - Corpus lines: {len(corpus_texts)}")
-        
-    else:
-        # Standard Mode: Metadata + Optional Corpus
-        metadata_path = os.path.join(core.path_base, "datasets", lang, dataset_name, "metadata.csv")
-        yield log(f"📂 Metadata Path: {metadata_path}")
-
-        if not os.path.exists(metadata_path):
-            return log("❌ Error: metadata.csv not found in that dataset folder!")
-
-        yield log("⏳ Reading texts from metadata.csv ...")
-        metadata_texts = load_text_from_metadata(metadata_path)
-        yield log(f"   - Metadata lines: {len(metadata_texts)}")
-        
-        if data_coverage < 100 and len(metadata_texts) > 0:
-            sample_size = int(len(metadata_texts) * (data_coverage / 100.0))
-            # Randomly select the percentage of lines
-            metadata_texts = random.sample(metadata_texts, sample_size)
-            yield log(f"   - Metadata lines (Sampled {data_coverage}%): {len(metadata_texts)}")
-        
-        if include_corpus:
-            yield log("📚 Reading corpus/corpus.txt ...")
-            corpus_texts = load_text_from_corpus(lang)
-            yield log(f"   - Corpus lines: {len(corpus_texts)}")
-        else:
-            yield log("⏭️ Skipping corpus file.")
-        
-    # 5. Normalization (Replaces simple lowercase)
-    yield log("⬇️ Normalizing all text (MultilingualNormalizer)...")
-    
-    # Determine the uppercase flag based on user selection
-    is_upper = (case_rule == "uppercase")
-
-    # Initialize the normalizer (handles Lowercase, Punctuation, Ellipsis)
-    normalizer = MultilingualNormalizer(lang=lang, wordify=True, abbreviations=True, upper=is_upper)
-    
-    # 1. Process Metadata Texts (Wordify & Case integrated via Normalizer)
-    if metadata_texts:
-        metadata_texts = [normalizer.normalize(t) for t in metadata_texts]
-        
-    # 2. Process Corpus Texts (Wordify & Case integrated via Normalizer)
-    if corpus_texts:
-        corpus_texts = [normalizer.normalize(t) for t in corpus_texts]
-        
-    if inject_words:
-        yield log(f"💉 Injecting extra words to Training & Corpus (Multiplier: {multiplier})...")
-        extra_text = injection.tr_corpus(multiplier,True)
-        extra_text_processed = normalizer.normalize(extra_text)
-        try:
-            db_path = os.path.join(core.corpus_directory(), "corpus.db")
-            if os.path.exists(db_path):
-                db = SQLiteManager(db_path)
-                upsert_query = """
-                    INSERT INTO normalized_chunks (lang, text, occurrence_count) 
-                    VALUES (?, ?, ?) 
-                    ON CONFLICT(lang, text) DO UPDATE SET 
-                    occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
-                """
-                db.execute_write(upsert_query, (lang, extra_text_processed, 1))
-        except Exception as e:
-            yield log(f"⚠️ Warning: Could not append injected text to corpus DB: {e}")
-
-        corpus_texts.append(extra_text_processed)
-        
-    raw_combined = metadata_texts + corpus_texts
-    
-    # 6. Combine + deduplicate
-    if deduplicate:
-        train_data = list(dict.fromkeys(raw_combined))
-        yield log(f"✅ Deduplication ON: Reduced {len(raw_combined)} to {len(train_data)} unique lines.")
-    else:
-        train_data = raw_combined
-        yield log(f"ℹ️ Deduplication OFF: Using all {len(train_data)} lines (including repeats).")
-    
-    if not train_data:
-        return log("❌ Error: No training data found!")
-    
-    # 7. Add Language Tags 
-
-    user_symbols = []
-    
+      
+    # 3. Add Language Tags 
+    user_symbols = []    
     lang_tags = [f"▁[{l}]" for l in core.language_list()]
 
     for tag in lang_tags:
         if tag not in user_symbols:
             user_symbols.append(tag)        
         
-    # 8. Add style and emotions
-    
+    # 4. Add style and emotions   
     style_tags = [
         # Conversational
         "[casual]", "[friendly]", "[intimate]", "[chatty]",
@@ -348,8 +261,7 @@ def train_tokenizer_ui(
                 
         yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
 
-    # 9. Parse Special Tokens
-      
+    # 5. Parse Special Tokens      
     tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
     
     tr_long = ["â", "▁â", "î", "▁î", "û", "▁û"]
@@ -364,32 +276,39 @@ def train_tokenizer_ui(
         for tag in tr_spec:
             if tag not in user_symbols:
                 user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_spec)} Turkish Special Characters to Tokenizer")
                 
     if tr_long_chk:
         for tag in tr_long:
             if tag not in user_symbols:
                 user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_long)} Turkish Long Vowels to Tokenizer")
                 
     if tr_seng_chk:
         for tag in tr_seng:
             if tag not in user_symbols:
                 user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_seng)} Standard English Letters to Tokenizer")
     
     if tr_turk_chk:
         for tag in tr_turk:
             if tag not in user_symbols:
                 user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_turk)} Turkic Extended Characters to Tokenizer")
                 
     if tr_punc_chk:
         for tag in tr_punc:
             if tag not in user_symbols:
                 user_symbols.append(tag)
+        yield log(f"🔣 Added {len(tr_punc)} Punctuation Marks to Tokenizer")
     
     if special_tokens_str:
-        user_symbols.extend([x.strip() for x in special_tokens_str.split("|") if x.strip()])
-        yield log(f"✨ Found {len(user_symbols)} Special Tokens")
+        custom_tokens = [x.strip() for x in special_tokens_str.split("|") if x.strip()]
+        if custom_tokens:
+            user_symbols.extend(custom_tokens)
+            yield log(f"✨ Found {len(custom_tokens)} Custom User Tokens")
         
-    # 10. Inject High-Frequency Syllables
+    # 6. Inject High-Frequency Syllables
     if inject_syllables and int(syllable_count) > 0:
         try:
             db_path = os.path.join(core.corpus_directory(), "corpus.db")
@@ -411,7 +330,7 @@ def train_tokenizer_ui(
         except Exception as e:
             yield log(f"❌ Error fetching syllables: {e}")
             
-    # 11. Inject High-Frequency Words
+    # 7. Inject High-Frequency Words
     if inject_wrd and int(wrd_count) > 0:
         try:
             db_path = os.path.join(core.corpus_directory(), "corpus.db")
@@ -433,12 +352,113 @@ def train_tokenizer_ui(
         except Exception as e:
             yield log(f"❌ Error fetching words: {e}")
 
-    # 12. Apply Casing
+    # 8. Apply Casing
     if case_rule == "uppercase":
         user_symbols = [sym.upper() for sym in user_symbols]
         yield log(f"🔠 Converted {len(user_symbols)} Special Tokens to uppercase")
+        
+    # 9. Vocabulary Capacity Safety Check
+    total_forced = len(user_symbols)
+    target_vocab = int(vocab_size)
+    capacity_pct = (total_forced / target_vocab) * 100
     
-    # 13. Train SentencePiece
+    yield log(f"📊 Vocabulary Capacity: {total_forced} forced symbols / {target_vocab} total vocab ({capacity_pct:.1f}% locked)")
+    
+    if total_forced >= target_vocab - 256:
+        yield log(f"❌ Error: Forced symbols ({total_forced}) exceed safe capacity for vocab size {target_vocab}. Please increase Vocab Size or reduce injected words/syllables.")
+        return
+    
+    # 10. Branching Logic for Data Loading
+    metadata_texts = []
+    corpus_texts = []
+    
+    if use_only_corpus:
+        yield log("⚠️ Mode: ONLY CORPUS (Ignoring Dataset Metadata)")
+        
+        # Force load corpus
+        yield log("📚 Reading from corpus.db ... (This may take a while for large datasets)")
+        corpus_texts = load_text_from_corpus(lang)
+        yield log(f"  📝 - Corpus chunks: {len(corpus_texts)}")
+        
+    else:
+        # Standard Mode: Metadata + Optional Corpus
+        metadata_path = os.path.join(core.path_base, "datasets", lang, dataset_name, "metadata.csv")
+        yield log(f"📂 Metadata Path: {metadata_path}")
+
+        if not os.path.exists(metadata_path):
+            yield log("❌ Error: metadata.csv not found in that dataset folder!")
+            return
+
+        yield log("⏳ Reading texts from metadata.csv ...")
+        metadata_texts = load_text_from_metadata(metadata_path)
+        yield log(f"  📝 - Metadata lines: {len(metadata_texts)}")
+        
+        if data_coverage < 100 and len(metadata_texts) > 0:
+            sample_size = int(len(metadata_texts) * (data_coverage / 100.0))
+            # Randomly select the percentage of lines
+            metadata_texts = random.sample(metadata_texts, sample_size)
+            yield log(f"  📝 - Metadata lines (Sampled {data_coverage}%): {len(metadata_texts)}")
+        
+        if include_corpus:
+            yield log("📚 Reading from corpus.db ... (This may take a moment for large datasets)")
+            corpus_texts = load_text_from_corpus(lang)
+            yield log(f" 📝  - Corpus chunks: {len(corpus_texts)}")
+        else:
+            yield log("⏭️ Skipping corpus database.")
+       
+    # 11. Normalization (Replaces simple lowercase)
+    yield log("⬇️ Normalizing raw metadata (Corpus database chunks are safely bypassed as pre-normalized)...")
+    
+    # Determine the uppercase flag based on user selection
+    is_upper = (case_rule == "uppercase")
+
+    # Initialize the normalizer (handles Lowercase, Punctuation, Ellipsis)
+    normalizer = MultilingualNormalizer(lang=lang, wordify=True, abbreviations=True, upper=is_upper)
+    
+    # 12. Process Metadata Texts ONLY
+    if metadata_texts:
+        yield log(f"⏳ Normalizing {len(metadata_texts)} raw lines from metadata.csv...")
+        metadata_texts = [normalizer.normalize(t) for t in metadata_texts]
+        
+    # 13. Process Corpus Texts
+    if corpus_texts:
+        yield log(f"⏩ Verified {len(corpus_texts)} pre-normalized chunks from database.")
+        
+    if inject_words:
+        yield log(f"💉 Injecting extra synthetic words (Multiplier: {multiplier})...")
+        extra_text = injection.tr_corpus(multiplier, True)
+        extra_text_processed = normalizer.normalize(extra_text)
+        try:
+            db_path = os.path.join(core.corpus_directory(), "corpus.db")
+            if os.path.exists(db_path):
+                db = SQLiteManager(db_path)
+                upsert_query = """
+                    INSERT INTO normalized_chunks (lang, text, occurrence_count) 
+                    VALUES (?, ?, ?) 
+                    ON CONFLICT(lang, text) DO UPDATE SET 
+                    occurrence_count = normalized_chunks.occurrence_count + excluded.occurrence_count
+                """
+                db.execute_write(upsert_query, (lang, extra_text_processed, 1))
+        except Exception as e:
+            yield log(f"⚠️ Warning: Could not append injected text to corpus DB: {e}")
+
+        corpus_texts.append(extra_text_processed)
+        
+    raw_combined = metadata_texts + corpus_texts
+    
+    # 14. Combine + deduplicate
+    if deduplicate:
+        train_data = list(dict.fromkeys(raw_combined))
+        yield log(f"✅ Deduplication ON: Reduced {len(raw_combined)} to {len(train_data)} unique lines.")
+    else:
+        train_data = raw_combined
+        yield log(f"ℹ️ Deduplication OFF: Using all {len(train_data)} lines (including repeats).")
+    
+    if not train_data:
+        yield log("❌ Error: No training data found!")
+        return   
+   
+    # 15. Train SentencePiece
     yield log("🌊 Streaming data directly from RAM to C++ backend via iterator...")
     yield log(f"🧠 Training BPE Tokenizer (Vocab: {vocab_size}, Coverage: {char_coverage})...")
         
