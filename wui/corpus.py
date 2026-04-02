@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import re
 import string
+import json
 import datetime
 import concurrent.futures
 import multiprocessing
@@ -78,10 +79,16 @@ def init_db():
     # 3. Normalized Table: Tracks chunks by unique Language AND Text pair
     db.create_table(
         "normalized_chunks",
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, text TEXT, occurrence_count INTEGER DEFAULT 1, is_syllabified INTEGER DEFAULT 0, UNIQUE(lang, text)"
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, text TEXT, occurrence_count INTEGER DEFAULT 1, is_syllabified INTEGER DEFAULT 0, is_wordified INTEGER DEFAULT 0, UNIQUE(lang, text)"
+    )
+
+    # 4. Words Table: Tracks distinct words and their frequencies per language
+    db.create_table(
+        "words",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, word TEXT, frequency INTEGER DEFAULT 1, is_syllabified INTEGER DEFAULT 0, UNIQUE(lang, word)"
     )
     
-    # 4. Syllables Table: Tracks distinct syllables and their frequencies per language
+    # 5. Syllables Table: Tracks distinct syllables and their frequencies per language
     db.create_table(
         "syllables",
         "id INTEGER PRIMARY KEY AUTOINCREMENT, lang TEXT, syllable TEXT, frequency INTEGER DEFAULT 1, UNIQUE(lang, syllable)"
@@ -224,11 +231,11 @@ def normalize_database(lang_code, max_workers, progress=gr.Progress()):
     try:
         db = init_db()
        
-        count_record = db.fetch_one("SELECT COUNT(*) as total FROM pdf_chunks WHERE text IS NOT NULL AND is_normalized = 0")
+        count_record = db.fetch_one(f"SELECT COUNT(*) as total FROM pdf_chunks WHERE lang = '{lang_code}' AND text IS NOT NULL AND is_normalized = 0")
         total_remaining = count_record["total"] if count_record else 0
         
         if total_remaining == 0:
-            return "✅ All chunks are already normalized! No new text to process."
+            return f"✅ All '{lang_code}' chunks are already normalized! No new text to process."
             
         safe_workers = max(1, int(max_workers))
         db_batch_size = 50000 
@@ -245,7 +252,7 @@ def normalize_database(lang_code, max_workers, progress=gr.Progress()):
             
             while True:
                 # 1. Fetch using B-Tree pagination (teleports past completed rows)
-                records = db.fetch_all(f"SELECT rowid as id, text FROM pdf_chunks WHERE rowid > {last_rowid} AND text IS NOT NULL AND is_normalized = 0 LIMIT {db_batch_size}")
+                records = db.fetch_all(f"SELECT rowid as id, text FROM pdf_chunks WHERE lang = '{lang_code}' AND rowid > {last_rowid} AND text IS NOT NULL AND is_normalized = 0 LIMIT {db_batch_size}")
                 
                 if not records:
                     break
@@ -298,22 +305,91 @@ def normalize_database(lang_code, max_workers, progress=gr.Progress()):
         
     except Exception as e:
         return f"❌ Error during normalization: {e}"
+        
+def _word_extraction_worker(args):
+    """
+    Top-level worker function that extracts individual words from normalized text chunks.
+    """
+    lang_code, text_count_pairs = args
+    local_counts = defaultdict(int)
+    
+    for text, count in text_count_pairs:
+        if text and text.strip():
+            words = text.split()
+            for word in words:
+                clean_word = word.strip()
+                if clean_word:
+                    local_counts[clean_word] += count
+                    
+    return dict(local_counts)
 
-def truncate_database():
-    """Empties all records from the database tables and resets auto-incrementing IDs."""
+def extract_words_database(lang_code, max_workers, progress=gr.Progress()):
+    """Reads normalized chunks, extracts words via CPU pool, and UPSERTs frequencies."""
     try:
         db = init_db()
-        chunks_cleared = db.truncate_table("pdf_chunks")
-        pdfs_cleared = db.truncate_table("processed_pdfs")
-        norm_cleared = db.truncate_table("normalized_chunks")
-        syllables_cleared = db.truncate_table("syllables")
+       
+        count_record = db.fetch_one(f"SELECT COUNT(*) as total FROM normalized_chunks WHERE lang = '{lang_code}' AND is_wordified = 0")
+        total_remaining = count_record["total"] if count_record else 0
         
-        if chunks_cleared and pdfs_cleared and norm_cleared and syllables_cleared:
-            return "🗑️ ✅ Database truncated successfully. All tables have been reset."
-        else:
-            return "❌ Error: Failed to truncate one or more tables."
+        if total_remaining == 0:
+            return f"✅ All '{lang_code}' normalized chunks are already word-extracted!"
+            
+        safe_workers = max(1, int(max_workers))
+        db_batch_size = 50000 
+        worker_chunk_size = 10000
+        
+        total_processed = 0
+        total_inserted = 0
+        last_rowid = 0
+        
+        progress(0, desc="Starting batch word extraction...")
+        
+        with concurrent.futures.ProcessPoolExecutor(max_workers=safe_workers) as executor:
+            while True:
+                records = db.fetch_all(f"SELECT rowid as id, text, occurrence_count FROM normalized_chunks WHERE lang = '{lang_code}' AND rowid > {last_rowid} AND is_wordified = 0 LIMIT {db_batch_size}")
+                
+                if not records:
+                    break
+                    
+                last_rowid = records[-1]["id"]
+                chunk_ids = [row["id"] for row in records]
+                text_count_pairs = [(row["text"], row["occurrence_count"]) for row in records]
+                
+                batches = [(lang_code, text_count_pairs[i:i + worker_chunk_size]) for i in range(0, len(text_count_pairs), worker_chunk_size)]
+                batch_counts = defaultdict(int)
+                
+                futures = [executor.submit(_word_extraction_worker, b) for b in batches]
+                
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        local_counts = future.result()
+                        for word, count in local_counts.items():
+                            batch_counts[word] += count
+                    except Exception as e:
+                        print(f"⚠️ Word Extractor Worker error: {e}")
+                            
+                if batch_counts:
+                    insert_data = [(lang_code, word, count) for word, count in batch_counts.items()]
+                    upsert_query = """
+                        INSERT INTO words (lang, word, frequency) 
+                        VALUES (?, ?, ?) 
+                        ON CONFLICT(lang, word) DO UPDATE SET 
+                        frequency = words.frequency + excluded.frequency
+                    """
+                    for i in range(0, len(insert_data), 10000):
+                        db.execute_many(upsert_query, insert_data[i:i + 10000])
+                    total_inserted += len(insert_data)
+                    
+                update_data = [(cid,) for cid in chunk_ids]
+                db.execute_many("UPDATE normalized_chunks SET is_wordified = 1 WHERE rowid = ?", update_data)
+                
+                total_processed += len(chunk_ids)
+                progress(total_processed / total_remaining, desc=f"Extracted words from {total_processed}/{total_remaining} chunks...")
+            
+        return f"✅ Word extraction complete! Processed {total_processed:,} chunks and extracted/updated {total_inserted:,} distinct words."
+        
     except Exception as e:
-        return f"❌ Error during truncation: {e}"
+        return f"❌ Error during word extraction: {e}"
             
 def _syllabify_worker(args):
     """
@@ -358,11 +434,11 @@ def syllabify_database(lang_code, max_workers, progress=gr.Progress()):
     try:
         db = init_db()
        
-        count_record = db.fetch_one("SELECT COUNT(*) as total FROM normalized_chunks WHERE is_syllabified = 0")
+        count_record = db.fetch_one(f"SELECT COUNT(*) as total FROM normalized_chunks WHERE lang = '{lang_code}' AND is_syllabified = 0")
         total_remaining = count_record["total"] if count_record else 0
         
         if total_remaining == 0:
-            return "✅ All normalized chunks are already syllabified!"
+            return f"✅ All '{lang_code}' normalized chunks are already syllabified!"
             
         safe_workers = max(1, int(max_workers))
         db_batch_size = 50000 
@@ -378,7 +454,7 @@ def syllabify_database(lang_code, max_workers, progress=gr.Progress()):
             
             while True:
                 # 1. Fetch using B-Tree pagination
-                records = db.fetch_all(f"SELECT rowid as id, text, occurrence_count FROM normalized_chunks WHERE rowid > {last_rowid} AND is_syllabified = 0 LIMIT {db_batch_size}")
+                records = db.fetch_all(f"SELECT rowid as id, text, occurrence_count FROM normalized_chunks WHERE lang = '{lang_code}' AND rowid > {last_rowid} AND is_syllabified = 0 LIMIT {db_batch_size}")
                 
                 if not records:
                     break
@@ -427,6 +503,50 @@ def syllabify_database(lang_code, max_workers, progress=gr.Progress()):
         
     except Exception as e:
         return f"❌ Error during syllabification: {e}"
+        
+def get_top_10_stats(lang_code):
+    """Fetches the top 10 most frequent words and syllables from the database."""
+    try:
+        db = init_db()
+        words_records = db.fetch_all("SELECT word, frequency FROM words WHERE lang = ? ORDER BY frequency DESC LIMIT 10", (lang_code,))
+        syl_records = db.fetch_all("SELECT syllable, frequency FROM syllables WHERE lang = ? ORDER BY frequency DESC LIMIT 10", (lang_code,))
+        
+        words_text = "\n".join([f"{r['word']}: {r['frequency']}" for r in words_records]) if words_records else "No words found."
+        syl_text = "\n".join([f"{r['syllable']}: {r['frequency']}" for r in syl_records]) if syl_records else "No syllables found."
+        
+        return words_text, syl_text
+    except Exception as e:
+        return f"❌ Database Error: {e}", f"❌ Database Error: {e}"
+
+def export_top_2000_json(lang_code):
+    """Exports the top 2000 words and syllables into JSON files inside the corpus directory."""
+    if not lang_code:
+        return "❌ Error: No language specified."
+        
+    try:
+        db = init_db()
+        words_records = db.fetch_all("SELECT word, frequency FROM words WHERE lang = ? ORDER BY frequency DESC LIMIT 2000", (lang_code,))
+        syl_records = db.fetch_all("SELECT syllable, frequency FROM syllables WHERE lang = ? ORDER BY frequency DESC LIMIT 2000", (lang_code,))
+        
+        corpus_dir = core.corpus_directory()
+        os.makedirs(corpus_dir, exist_ok=True)
+        
+        # Format as key-value pairs mapping the string to its integer frequency
+        words_data = {r["word"]: r["frequency"] for r in words_records}
+        syl_data = {r["syllable"]: r["frequency"] for r in syl_records}
+        
+        words_path = os.path.join(corpus_dir, f"words_top2000_{lang_code}.json")
+        syl_path = os.path.join(corpus_dir, f"syllables_top2000_{lang_code}.json")
+        
+        with open(words_path, "w", encoding="utf-8") as f:
+            json.dump(words_data, f, ensure_ascii=False, indent=4)
+            
+        with open(syl_path, "w", encoding="utf-8") as f:
+            json.dump(syl_data, f, ensure_ascii=False, indent=4)
+            
+        return f"✅ Successfully exported top datasets to:\n{words_path}\n{syl_path}"
+    except Exception as e:
+        return f"❌ Export Error: {e}"
 
 def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_sentences, train_extremely, norm_rule, hard_vocab, progress=gr.Progress()):
     """Trains SentencePiece from the pre-normalized unique text chunks for a specific language."""
@@ -453,8 +573,14 @@ def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_
         syl_records = db.fetch_all("SELECT syllable FROM syllables WHERE lang = ? ORDER BY frequency DESC LIMIT 1000", (lang_code,))
         forced_syllables = [row["syllable"] for row in syl_records if row["syllable"]]
         
-        if forced_syllables:
-            print(f"💉 Forcing {len(forced_syllables)} high-frequency syllables into the base vocabulary...")
+        # Fetch the top 1000 highest frequency words for the target language
+        word_records = db.fetch_all("SELECT word FROM words WHERE lang = ? ORDER BY frequency DESC LIMIT 1000", (lang_code,))
+        forced_words = [row["word"] for row in word_records if row["word"]]
+        
+        forced_symbols = forced_syllables + forced_words
+        
+        if forced_symbols:
+            print(f"💉 Forcing {len(forced_syllables)} syllables and {len(forced_words)} words into the base vocabulary...")
         
         # 1. Initialize ITTS SentencePiece Trainer Wrapper
         trainer = SentencePieceTrainerWrapper(
@@ -465,7 +591,7 @@ def train_tokenizer(vocab_size, model_prefix, lang_code, sentence_size, shuffle_
             train_extremely_large_corpus=bool(train_extremely), # Activate C++ memory optimizations
             input_sentence_size=int(sentence_size),             # Randomly sample X million chunks
             shuffle_input_sentence=bool(shuffle_sentences),     # Ensure a uniform linguistic distribution
-            user_defined_symbols=forced_syllables               # ⚡ LOCKS SYLLABLES INTO VOCAB
+            user_defined_symbols=forced_symbols                 # Locks syllables and words into vocab
         )
         
         progress(0.5, desc="Executing C++ SPM Training (This will take a while)...")
@@ -648,6 +774,19 @@ def process_and_add_workspace_files(lang_code, chunk_size, progress=gr.Progress(
         ui_logs.append(f"❌ Database Error: {str(e)}")
         
     return "\n".join(ui_logs)
+    
+def truncate_database():
+    """Resets all processing flags (is_normalized, is_syllabified, etc.) to 0 instead of truncating."""
+    try:
+        db = init_db()
+        db.execute_write("UPDATE pdf_chunks SET is_normalized = 0")
+        db.execute_write("UPDATE normalized_chunks SET is_syllabified = 0")
+        db.execute_write("UPDATE normalized_chunks SET is_wordified = 0")
+        db.execute_write("UPDATE words SET is_syllabified = 0")
+        
+        return "🔄 ✅ Database processing flags successfully reset to False."
+    except Exception as e:
+        return f"❌ Error resetting flags: {e}"
     
 def open_tokenizer_folder():
     """Opens the project's tokenizer directory in the system file explorer."""
@@ -1077,6 +1216,11 @@ def create_demo():
                 gr.Markdown(_("CORPUS_DB_DESC_NORM"))
                 
                 with gr.Row():
+                    norm_lang_input = gr.Dropdown(
+                        label=_("COMMON_LABEL_LANG"), 
+                        choices=lang_options,
+                        value="tr"
+                    )
                     worker_input_norm = gr.Slider(
                         label=_("CORPUS_DB_LABEL_WORKERS"), 
                         minimum=1, 
@@ -1090,8 +1234,32 @@ def create_demo():
                     
                 with gr.Row():
                     norm_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_NORM_STATUS"), interactive=False, lines=2)
+                    
+            # --- TAB 3: Word Extractor ---
+            with gr.Tab(_("CORPUS_DB_TAB_WORD")):
+                gr.Markdown(_("CORPUS_DB_DESC_WORD"))
+                
+                with gr.Row():
+                    word_lang_input = gr.Dropdown(
+                        label=_("COMMON_LABEL_LANG"), 
+                        choices=lang_options,
+                        value="tr"
+                    )
+                    worker_input_word = gr.Slider(
+                        label=_("CORPUS_DB_LABEL_WORKERS"), 
+                        minimum=1, 
+                        maximum=multiprocessing.cpu_count(), 
+                        value=max(1, multiprocessing.cpu_count() // 2), 
+                        step=1
+                    ) 
+                    
+                with gr.Row():
+                    word_btn = gr.Button(_("CORPUS_DB_BTN_WORD"), variant="primary")
+                    
+                with gr.Row():
+                    word_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_WORD_STATUS"), interactive=False, lines=2)
 
-            # --- TAB 3: Syllabifier
+            # --- TAB 4: Syllabifier
             with gr.Tab(_("CORPUS_DB_TAB_SYL")):
                 gr.Markdown(_("CORPUS_DB_DESC_SYL"))
                 
@@ -1115,7 +1283,32 @@ def create_demo():
                 with gr.Row():
                     syl_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_SYL_STATUS"), interactive=False, lines=2)
             
-            # --- TAB 4: Tokenizer ---
+            # --- TAB 5: Vocabulary Statistics ---
+            with gr.Tab(_("CORPUS_DB_TAB_STATS")):
+                gr.Markdown(_("CORPUS_DB_DESC_STATS"))
+                
+                with gr.Row():
+                    stats_lang_input = gr.Dropdown(
+                        label=_("COMMON_LABEL_LANG"), 
+                        choices=lang_options,
+                        value="tr"
+                    )
+                    stats_refresh_btn = gr.Button(_("CORPUS_DB_BTN_STATS_REFRESH"), variant="secondary")
+                
+                with gr.Row():
+                    stats_words_out = gr.Textbox(label=_("CORPUS_DB_LABEL_STATS_WORDS"), lines=10, interactive=False)
+                    stats_syl_out = gr.Textbox(label=_("CORPUS_DB_LABEL_STATS_SYL"), lines=10, interactive=False)
+                    
+                with gr.Row():
+                    stats_save_btn = gr.Button(_("CORPUS_DB_BTN_STATS_SAVE"), variant="primary")
+                    
+                with gr.Row():
+                    stats_output_log = gr.Textbox(label=_("CORPUS_DB_LABEL_STATS_STATUS"), interactive=False, lines=2)
+
+                with gr.Row():
+                    stats_folder_btn = gr.Button(_("COMMON_FOLDER_OPEN"))                   
+            
+            # --- TAB 6: Tokenizer ---
             with gr.Tab(_("CORPUS_DB_TAB_TOK")):
                 gr.Markdown(_("CORPUS_DB_DESC_TOK"))
                 
@@ -1367,12 +1560,23 @@ def create_demo():
         # Database Manager
         process_btn.click(fn=process_pdfs, inputs=[folder_input, lang_input, chunk_input, worker_input], outputs=db_output_log)
         truncate_btn.click(fn=truncate_database, inputs=None, outputs=db_output_log)
-        norm_btn.click(fn=normalize_database, inputs=[lang_input, worker_input_norm], outputs=norm_output_log)
+        norm_btn.click(fn=normalize_database, inputs=[norm_lang_input, worker_input_norm], outputs=norm_output_log)
+        word_btn.click(fn=extract_words_database, inputs=[word_lang_input, worker_input_word], outputs=word_output_log)
         syl_btn.click(fn=syllabify_database, inputs=[syl_lang_input, worker_input_syl], outputs=syl_output_log)
+        
+        stats_refresh_btn.click(fn=get_top_10_stats, inputs=[stats_lang_input], outputs=[stats_words_out, stats_syl_out])
+        stats_save_btn.click(fn=export_top_2000_json, inputs=[stats_lang_input], outputs=[stats_output_log])
+        
         train_btn.click(
             fn=train_tokenizer, 
             inputs=[vocab_input, prefix_input, tok_lang_input, tok_sentence_size, tok_shuffle, tok_train_ext, tok_norm_rule, tok_hard_vocab], 
             outputs=tok_output_log
+        )
+        
+        stats_folder_btn.click(
+            fn=open_tokenizer_folder,
+            inputs=None,
+            outputs=None
         )
         
         tok_folder_btn.click(
