@@ -409,7 +409,7 @@
 		"TOKENIZER_LABEL_COMMA_SEP_SYLLABLES": "Virgülle Ayrılmış Heceler",
 		"TOKENIZER_BTN_SYLLABIFY": "Hecele",
 
-		"TOKENIZER_ACC_DESIGN": "✂️ Özel Model Tasarla",
+		"TOKENIZER_ACC_DESIGN": "🎨 Özel Model Tasarla",
 		"TOKENIZER_DESC_DESIGN": "Orijinal ve eğitilmiş tokenizer modellerini kullanarak özel bir model tasarlayın.",
 		"TOKENIZER_LABEL_DESIGN_UPLOAD": "Resmi modelle birleştirilecek modeli yükleyin",
 		"TOKENIZER_HEADER_DESIGN_SOURCE": "#### KAYNAK (Resmi model)",
