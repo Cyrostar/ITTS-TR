@@ -324,6 +324,10 @@
 		"TOKENIZER_CHK_INJECT_SYL": "Inject High-Frequency Syllables",
 		"TOKENIZER_LABEL_SYL_COUNT": "Syllable Count",
 		
+		"TOKENIZER_HEADER_WRD": "### Words",
+		"TOKENIZER_CHK_INJECT_WRD": "Inject High-Frequency Words",
+		"TOKENIZER_LABEL_WRD_COUNT": "Word Count",
+		
 		"TOKENIZER_HEADER_NORM": "### Sentencepiece Normalization Rule",
 		"TOKENIZER_LABEL_NORM": "Normalization Rule",
 		"TOKENIZER_HEADER_CASE": "### Tokenizer Letter Case",

@@ -343,6 +343,10 @@
 		"TOKENIZER_CHK_INJECT_SYL": "Yüksek Frekanslı Heceleri Enjekte Et",
 		"TOKENIZER_LABEL_SYL_COUNT": "Hece Sayısı",
 		
+		"TOKENIZER_HEADER_WRD": "### Kelimeler",
+		"TOKENIZER_CHK_INJECT_WRD": "Yüksek Frekanslı Kelimeleri Enjekte Et",
+		"TOKENIZER_LABEL_WRD_COUNT": "Kelime Sayısı",
+		
 		"TOKENIZER_HEADER_ADVANCED": "### Gelişmiş Ayarlar",
 		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Maksimum Cümle (Örneklem Boyutu)",
 		"TOKENIZER_INFO_ADV_SENT_SIZE": "Devasa veri setlerinde RAM kullanımını sınırlar. Tümünü kullanmak için 0 yapın.",
@@ -394,7 +398,7 @@
 		"TOKENIZER_LABEL_NORM_OUT": "Normalize Edilmiş Çıktı",
 		"TOKENIZER_BTN_NORM": "Metni Normalize Et",
 		
-		"TOKENIZER_ACC_SYLLABIFIER": "Türkçe Heceleyici",
+		"TOKENIZER_ACC_SYLLABIFIER": "✂️ Türkçe Heceleyici",
 		"TOKENIZER_DESC_SYLLABIFIER": "Türkçe heceleme, vurgu işaretleme ve ünlü uyumu algoritmalarını test edin.",
 		"TOKENIZER_PLACEHOLDER_SYLLABIFY_INPUT": "Türkçe metni buraya girin...",
 		"TOKENIZER_CHK_STRESS_MARKERS": "Vurgu İşaretlerini Ekle",

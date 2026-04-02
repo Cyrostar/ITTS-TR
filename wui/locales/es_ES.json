@@ -343,6 +343,10 @@
 		"TOKENIZER_CHK_INJECT_SYL": "Inyectar sílabas de alta frecuencia",
 		"TOKENIZER_LABEL_SYL_COUNT": "Recuento de sílabas",
 		
+		"TOKENIZER_HEADER_WRD": "### Palabras",
+		"TOKENIZER_CHK_INJECT_WRD": "Inyectar Palabras de Alta Frecuencia",
+		"TOKENIZER_LABEL_WRD_COUNT": "Recuento de Palabras",
+		
 		"TOKENIZER_HEADER_ADVANCED": "### Configuración Avanzada",
 		"TOKENIZER_LABEL_ADV_SENT_SIZE": "Máximo de Oraciones (Tamaño de Muestra)",
 		"TOKENIZER_INFO_ADV_SENT_SIZE": "Limita el uso de RAM en conjuntos de datos masivos. Establecer en 0 para usar todos.",
