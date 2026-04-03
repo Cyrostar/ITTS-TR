@@ -91,6 +91,13 @@ set TORCH_HOME=%ARTHA_BASE_DIR%models\torch\
 set TORCH_HF_HOME=%ARTHA_BASE_DIR%models\huggingface\
 set OLLAMA_MODELS=%ARTHA_BASE_DIR%models\ollama\
 
+::TEMP DIRECTORY
+
+mkdir "%ARTHA_HOME_DIR%\temp" 2>nul
+set "TMP=%ARTHA_HOME_DIR%\temp"
+set "TEMP=%ARTHA_HOME_DIR%\temp"
+set "GRADIO_TEMP_DIR=%ARTHA_HOME_DIR%\temp"
+
 ::TOKENS
 
 set HF_TOKEN=
