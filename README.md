@@ -23,6 +23,7 @@ This WebUI provides a modular, tabbed workflow:
 * **Trainer:** Interface to configure and monitor Index-TTS model training/fine-tuning.
 * **Inference:** Generate high-fidelity audio from text using trained checkpoints.
 * **TTS:** A standalone inference engine that bypasses project settings for direct model loading, zero-shot controls, and rapid generation.
+* **Voice Conversion (RVC):** Integrated Applio RVC architecture for zero-shot voice conversion and highly accurate timbre modification.
 
 ## 🧩 Prerequisites
 

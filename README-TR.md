@@ -23,6 +23,7 @@ Bu WebUI, modüler ve sekmeli bir iş akışı sunar:
 * **Eğitmen (Trainer):** Index-TTS model eğitimini/ince ayarını (fine-tuning) yapılandırma ve izleme arayüzü.
 * **Çıkarım (Inference):** Eğitilmiş kontrol noktalarını kullanarak metinden yüksek kaliteli (high-fidelity) ses üretimi.
 * **TTS:** Proje ayarlarını atlayarak doğrudan model yükleme, zero-shot (sıfır-atış) kontrolleri ve hızlı üretim sağlayan bağımsız bir çıkarım motoru.
+* **Ses Dönüştürme (RVC):** Zero-shot ses dönüştürme ve yüksek doğruluklu ses rengi (timbre) modifikasyonu için entegre Applio RVC mimarisi.
 
 ## 🧩 Önkoşullar
 
@@ -32,19 +33,21 @@ Bu WebUI, modüler ve sekmeli bir iş akışı sunar:
 
 ## 🚀 Kurulum
 
-ITTS-TR ortamını düzgün bir şekilde kurmak için lütfen aşağıdaki adımları izleyin:
+ITTS-TR ortamını düzgün bir şekilde kurmak için lütfen şu adımları izleyin:
 
 1. **Depoyu İndirin:** Bu depoyu klonlayın veya yerel makinenize indirin.
-2. **Kurulum Aracını Çalıştırın:** Kurulum betiklerini içeren **bat** klasörüne gidin ve `install.bat` dosyasına çift tıklayın. 
-3. **Ekrandaki Yönergeleri İzleyin:** Toplu iş betiği (batch script) sizi aşağıdaki otomatik kurulum aşamalarından geçirecektir:
-   * **Git Kurulumu:** Eğer yüklü değilse, taşınabilir (portable) bir GitHub sürümünü yüklemeniz istenecektir.
-   * **Python Kurulumu:** İstendiğinde **3.11.9** Python sürümünü girin. Betik, izole edilmiş bir Python ortamını indirecek, çıkaracak ve yapılandıracaktır.
-   * **Temel Bağımlılıklar:** Betik, `requirements.txt` dosyasında tanımlanan temel Python gereksinimlerini otomatik olarak yükler.
-   * **PyTorch ve CUDA Yapılandırması:** PyTorch'u CUDA desteğiyle kurmak isteyip istemediğiniz sorulacaktır. Devam ederseniz, uygun GPU hızlandırmasını sağlamak için tercih ettiğiniz CUDA sürümünü (12.6, 12.8 veya 13.0) seçebilirsiniz. Sürüm **12.8** şiddetle tavsiye edilir.
-   * **FFmpeg Kurulumu:** Kararlı (Stable - v7.1.1) veya En Son Sürüm (Latest Release) seçenekleriyle FFmpeg kurmanız istenecektir.
-   * **yt-dlp:** Medya indirme işlemleri için isteğe bağlı olarak `yt-dlp` çalıştırılabilir dosyasını kurmayı seçebilirsiniz.
-   * **Çekirdek Modeli Klonlama ve Yamalama:** Son olarak betik, seyreltilmiş (sparse) `index-tts` deposunu onayınızdan sonra klonlayacak ve zorunlu bağımlılık düzeltmelerini uygulayacaktır.
-
+2. **Yükleyiciyi Çalıştırın:** Kurulum komut dosyalarını içeren **bat** klasörüne gidin ve `install.bat` dosyasına çift tıklayın. 
+3. **Ekrandaki Yönergeleri İzleyin:** Toplu iş dosyası (batch script) sizi aşağıdaki otomatik kurulum aşamalarından geçirecektir:
+   * **Git Kurulumu:** Sisteminizde yüklü değilse, taşınabilir (portable) bir GitHub sürümü kurmanız istenecektir.
+   * **Python Kurulumu:** İstendiğinde Python sürümü olarak **3.11.9** girin. Komut dosyası izole bir Python ortamı indirecek, çıkaracak ve yapılandıracaktır (gerekli C++ başlıkları ve kütüphaneleri NuGet aracılığıyla dahil edilir).
+   * **Temel Bağımlılıklar:** Komut dosyası modern derleme arka uçlarını (`uv` ve `setuptools`) kurar ve `requirments.txt` içinde tanımlanan temel Python gereksinimlerini otomatik olarak yükler.
+   * **PyTorch & CUDA Yapılandırması:** Komut dosyası önerilen Torch sürümünü (örn. 2.8.0) otomatik olarak algılayacaktır. CUDA desteği ile kurmak isteyip istemediğiniz sorulacaktır. Devam ederseniz, uygun GPU hızlandırmasını sağlamak için tercih ettiğiniz CUDA sürümünü (12.6, 12.8 veya 13.0) seçebilirsiniz. **12.8** sürümü şiddetle tavsiye edilir.
+   * **FFmpeg Kurulumu:** FFmpeg kurmanız istenecektir; Kararlı (Stable - v7.1.1) veya En Son Sürüm (Latest Release) arasında seçim yapma seçenekleri sunulacaktır.
+   * **yt-dlp:** Medya indirme işlemleri için isteğe bağlı olarak `yt-dlp` aracını kurmayı seçebilirsiniz.
+   * **Çekirdek Modeli Klonlama:** Seyrek (sparse) `index-tts` deposunu klonlamanız istenecektir.
+   * **RVC Entegrasyonu:** RVC özelliklerini işlem hattına (pipeline) entegre etmek için seyrek `Applio` deposunu klonlamanız istenecektir.
+   * **Sonlandırma ve Yamalar:** Son olarak, komut dosyası WebUI çalışma alanı klasörlerini (`uix` ve `wui`) otomatik olarak başlatacak ve Index-TTS, SpeechBrain ve RVC kod tabanlarına zorunlu bağımlılık düzeltmelerini uygulayacaktır.
+   
 ### 🔑 Hugging Face Token Yapılandırması (`HF_TOKEN`)
 
 `paths.bat` yapılandırma dosyası bir `HF_TOKEN` ortam değişkeni içerir. Bu token, Hugging Face Hub'daki bazı kısıtlı modellere ve ağırlıklara erişim sağlamak ve indirmek için kesinlikle gereklidir. 
