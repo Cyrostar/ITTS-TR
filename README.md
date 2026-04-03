@@ -37,15 +37,15 @@ To set up the ITTS-TR environment properly, please follow these steps:
 1. **Get the Repository:** Clone or download this repository to your local machine.
 2. **Run the Installer:** Navigate to the **bat** folder containing the setup scripts and double-click the `install.bat` file. 
 3. **Follow the On-Screen Prompts:** The batch script will guide you through the following automated setup phases:
-   * [cite_start]**Git Installation:** You will be prompted to install a portable version of GitHub if you do not already have it[cite: 2].
-   * [cite_start]**Python Setup:** Enter Python version **3.11.9** when prompted[cite: 2]. [cite_start]The script will download, extract, and configure an isolated Python environment, including necessary C++ headers and libraries via NuGet[cite: 2, 3].
-   * [cite_start]**Base Dependencies:** The script installs modern build backends (`uv` and `setuptools`) and automatically installs the core Python requirements defined in `requirments.txt`[cite: 4].
-   * [cite_start]**PyTorch & CUDA Configuration:** The script will automatically detect the recommended Torch version (e.g., 2.8.0)[cite: 4]. [cite_start]You will be asked if you want to install it with CUDA support[cite: 5]. [cite_start]If you proceed, you can select your preferred CUDA version (12.6, 12.8, or 13.0) to ensure proper GPU acceleration[cite: 5]. [cite_start]Version **12.8** is highly recommended[cite: 5].
-   * [cite_start]**FFmpeg Installation:** You will be prompted to install FFmpeg, with options to choose either the Stable (v7.1.1) or the Latest Release[cite: 6].
-   * [cite_start]**yt-dlp:** You can optionally choose to install the `yt-dlp` executable for media downloading[cite: 6].
-   * [cite_start]**Core Model Cloning:** You will be asked to clone the sparse `index-tts` repository[cite: 7].
-   * [cite_start]**RVC Integration:** You will be prompted to clone the sparse `Applio` repository to integrate RVC features into the pipeline[cite: 8].
-   * [cite_start]**Finalization & Patching:** Finally, the script will automatically initialize the WebUI workspace folders (`uix` and `wui`) and apply mandatory dependency fixes to the Index-TTS, SpeechBrain, and RVC codebases[cite: 6, 9].
+   * **Git Installation:** You will be prompted to install a portable version of GitHub if you do not already have it.
+   * **Python Setup:** Enter Python version **3.11.9** when prompted. The script will download, extract, and configure an isolated Python environment, including necessary C++ headers and libraries via NuGet.
+   * **Base Dependencies:** The script installs modern build backends (`uv` and `setuptools`) and automatically installs the core Python requirements defined in `requirments.txt`.
+   * **PyTorch & CUDA Configuration:** The script will automatically detect the recommended Torch version (e.g., 2.8.0). You will be asked if you want to install it with CUDA support. If you proceed, you can select your preferred CUDA version (12.6, 12.8, or 13.0) to ensure proper GPU acceleration. Version **12.8** is highly recommended.
+   * **FFmpeg Installation:** You will be prompted to install FFmpeg, with options to choose either the Stable (v7.1.1) or the Latest Release.
+   * **yt-dlp:** You can optionally choose to install the `yt-dlp` executable for media downloading.
+   * **Core Model Cloning:** You will be asked to clone the sparse `index-tts` repository.
+   * **RVC Integration:** You will be prompted to clone the sparse `Applio` repository to integrate RVC features into the pipeline.
+   * **Finalization & Patching:** Finally, the script will automatically initialize the WebUI workspace folders (`uix` and `wui`) and apply mandatory dependency fixes to the Index-TTS, SpeechBrain, and RVC codebases.
 
 ### 🔑 Hugging Face Token Configuration (`HF_TOKEN`)
 
