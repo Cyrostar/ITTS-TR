@@ -6,9 +6,9 @@ set ARTHA_PYTHON_URL=https://www.python.org/ftp/python/
 set ARTHA_PIP_URL=https://bootstrap.pypa.io/get-pip.py
 set ARTHA_MYSQL_URL=https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.35-winx64.zip
 set ARTHA_GITHUB_URL=https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.1/PortableGit-2.43.0-64-bit.7z.exe
-set ARTHA_FFMPEG_STABLE_URL=https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-full_build.7z
+set ARTHA_FFMPEG_STABLE_URL=https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-full_build.7z
 set ARTHA_FFMPEG_LATEST_URL=https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z
-set ARTHA_YT_DIP_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_x86.exe
+set ARTHA_YT_DLP_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_x86.exe
 set ARTHA_OLLAMA_URL=https://ollama.com/download/OllamaSetup.exe
 
 ::PATHS
@@ -32,7 +32,7 @@ set ARTHA_ENV_DIR=%ARTHA_BASE_DIR%env\
 set ARTHA_GITHUB_DIR=%ARTHA_BIN_DIR%github\
 set ARTHA_MYSQLD_DIR=%ARTHA_BIN_DIR%mysql\
 set ARTHA_FFMPEG_DIR=%ARTHA_BIN_DIR%ffmpeg\
-set ARTHA_YT_DIP_DIR=%ARTHA_BIN_DIR%yt-dip\
+set ARTHA_YT_DLP_DIR=%ARTHA_BIN_DIR%yt-dlp\
 set ARTHA_OLLAMA_DIR=%ARTHA_BIN_DIR%ollama\
 
 set ARTHA_GITHUB_BIN=%ARTHA_GITHUB_DIR%bin\
