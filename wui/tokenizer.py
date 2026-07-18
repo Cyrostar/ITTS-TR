@@ -134,6 +134,7 @@ def train_tokenizer_ui(
     multiplier,
     deduplicate,
     sentence_size,
+    max_sentence_length,
     train_extremely,
     shuffle_sentences,
     hard_vocab,
@@ -476,6 +477,7 @@ def train_tokenizer_ui(
             hard_vocab_limit=bool(hard_vocab),
             train_extremely_large_corpus=bool(train_extremely),
             input_sentence_size=int(sentence_size),
+            max_sentence_length=int(max_sentence_length),
             shuffle_input_sentence=bool(shuffle_sentences)
         )
         
@@ -1460,6 +1462,12 @@ def create_demo():
                     precision=0, 
                     info=_("TOKENIZER_INFO_ADV_SENT_SIZE")
                 )
+                tok_max_sentence_length = gr.Number(
+                    label="Max Sentence Length (Bytes)", 
+                    value=10000000, 
+                    precision=0, 
+                    info="Maximum length of a single string before it gets skipped. Keep high for large Corpus DB chunks."
+                )
                 tok_train_ext = gr.Checkbox(
                     label=_("TOKENIZER_CHK_ADV_TRAIN_EXT"), 
                     value=False, 
@@ -1525,6 +1533,7 @@ def create_demo():
             multiplier_slider,
             deduplicate_chk,
             tok_sentence_size,
+            tok_max_sentence_length,
             tok_train_ext,
             tok_shuffle,
             tok_hard_vocab,
