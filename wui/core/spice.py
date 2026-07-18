@@ -185,7 +185,8 @@ class SentencePieceTrainerWrapper:
         input_sentence_size: int = 0,
         shuffle_input_sentence: bool = True,
         train_extremely_large_corpus: bool = False,
-        num_threads: int = 16
+        num_threads: int = 16,
+        max_sentence_length: int = 10000000
     ):
         # 1. Core Architecture
         self.vocab_size = vocab_size
@@ -210,6 +211,7 @@ class SentencePieceTrainerWrapper:
         self.shuffle_input_sentence = shuffle_input_sentence
         self.train_extremely_large_corpus = train_extremely_large_corpus
         self.num_threads = num_threads
+        self.max_sentence_length = max_sentence_length
 
     def train(self, model_prefix: str, input_file: str = None, sentence_iterator=None):
         """
@@ -237,7 +239,8 @@ class SentencePieceTrainerWrapper:
             "input_sentence_size": self.input_sentence_size,
             "shuffle_input_sentence": self.shuffle_input_sentence,
             "train_extremely_large_corpus": self.train_extremely_large_corpus,
-            "num_threads": self.num_threads
+            "num_threads": self.num_threads,
+            "max_sentence_length": self.max_sentence_length
         }
 
         # Dynamically inject the correct input source
