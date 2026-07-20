@@ -346,6 +346,94 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
         yield log(f"❌ Error: {str(e)}")
         
 # ======================================================
+# METHOD 3: MERGE DATASETS
+# ======================================================
+
+def get_all_datasets():
+    datasets_dir = os.path.join(core.path_base, "datasets")
+    dataset_list = []
+    if os.path.exists(datasets_dir):
+        for lang in os.listdir(datasets_dir):
+            lang_dir = os.path.join(datasets_dir, lang)
+            if os.path.isdir(lang_dir):
+                for ds in os.listdir(lang_dir):
+                    ds_dir = os.path.join(lang_dir, ds)
+                    if os.path.isdir(ds_dir):
+                        # Use forward slashes for cross-platform compatibility in UI
+                        dataset_list.append(f"{lang}/{ds}")
+    return dataset_list
+
+def merge_datasets_ui(merged_name, target_lang, resample_sr, selected_datasets):
+    if not merged_name:
+        yield "❌ Please enter a name for the merged dataset."
+        return
+    if not selected_datasets:
+        yield "❌ Please select at least one dataset to merge."
+        return
+        
+    output_dir = os.path.join(core.path_base, "datasets", target_lang, merged_name)
+    wavs_dir = os.path.join(output_dir, "wavs")
+    metadata_path = os.path.join(output_dir, "metadata.csv")
+    
+    os.makedirs(wavs_dir, exist_ok=True)
+    
+    target_sr_val = SR_MAP.get(resample_sr, None)
+    
+    merged_metadata_lines = []
+    global_index = 0
+    
+    import shutil
+    from pydub import AudioSegment
+    
+    total_datasets = len(selected_datasets)
+    
+    for i, ds_path in enumerate(selected_datasets):
+        yield f"🔄 Merging dataset {i+1}/{total_datasets}: {ds_path} ..."
+        
+        # ds_path is "lang/ds_name"
+        ds_full_path = os.path.join(core.path_base, "datasets", ds_path.replace("/", os.sep))
+        ds_metadata = os.path.join(ds_full_path, "metadata.csv")
+        ds_wavs = os.path.join(ds_full_path, "wavs")
+        
+        if not os.path.exists(ds_metadata):
+            continue
+            
+        with open(ds_metadata, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+            
+        for line in lines:
+            parts = line.split("|")
+            if len(parts) >= 5:
+                orig_lang = parts[0]
+                orig_ds_name = parts[1]
+                orig_filename = parts[2]
+                speaker = parts[3]
+                text = parts[4]
+                
+                orig_wav_path = os.path.join(ds_wavs, orig_filename)
+                if os.path.exists(orig_wav_path):
+                    new_filename = f"audio_{global_index:06d}.wav"
+                    new_wav_path = os.path.join(wavs_dir, new_filename)
+                    
+                    if target_sr_val is not None:
+                        clip = AudioSegment.from_file(orig_wav_path)
+                        if clip.frame_rate != target_sr_val:
+                            clip = clip.set_frame_rate(target_sr_val)
+                        clip = clip.set_channels(1)
+                        clip.export(new_wav_path, format="wav")
+                    else:
+                        shutil.copy2(orig_wav_path, new_wav_path)
+                    
+                    new_line = f"{target_lang}|{merged_name}|{new_filename}|{speaker}|{text}"
+                    merged_metadata_lines.append(new_line)
+                    global_index += 1
+
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(merged_metadata_lines))
+        
+    yield f"🎉 Successfully merged {total_datasets} datasets into {merged_name}! Total clips: {global_index}"
+
+# ======================================================
 # UI CREATION
 # ======================================================
 
@@ -470,6 +558,38 @@ def create_demo():
                 inputs=[wx_logs], 
                 outputs=[wx_status, wx_logs], 
                 cancels=[wx_event]
+            )
+            
+        with gr.Tab("Method 3: Merge Datasets"):
+            with gr.Row():
+                merge_out_name = gr.Textbox(label="Merged Dataset Name", placeholder="my_merged_dataset", scale=2)
+                merge_lang = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=lang_options, value="tr", scale=1)
+                merge_sr = gr.Dropdown(label=_("DATASET_LABEL_RESAMPLE"), choices=sr_options, value="None", scale=1)
+                refresh_btn = gr.Button("🔄 Refresh Dataset List", scale=1)
+                
+            with gr.Row():
+                dataset_checkboxes = gr.CheckboxGroup(
+                    label="Select Datasets to Merge",
+                    choices=get_all_datasets(),
+                    interactive=True
+                )
+                
+            with gr.Row():
+                merge_btn = gr.Button("Merge Selected Datasets", variant="primary", elem_classes="wui-button-green")
+                
+            with gr.Row():
+                merge_status = gr.Textbox(label=_("DATASET_LABEL_STATUS"), lines=1, interactive=False)
+                
+            refresh_btn.click(
+                fn=lambda: gr.CheckboxGroup(choices=get_all_datasets()),
+                inputs=[],
+                outputs=[dataset_checkboxes]
+            )
+            
+            merge_btn.click(
+                fn=merge_datasets_ui,
+                inputs=[merge_out_name, merge_lang, merge_sr, dataset_checkboxes],
+                outputs=[merge_status]
             )
             
         # =============

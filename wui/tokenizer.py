@@ -123,7 +123,8 @@ def train_tokenizer_ui(
     style_chk,
     emotion_chk,
     tr_spec_chk,
-    tr_seng_chk, 
+    tr_alone_chk,
+    tr_seng_chk,
     tr_turk_chk,    
     tr_long_chk, 
     tr_punc_chk,
@@ -264,11 +265,13 @@ def train_tokenizer_ui(
         yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
 
     # 5. Parse Special Tokens      
-    tr_spec = ["ç", "▁ç", "ğ", "▁ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
+    tr_spec = ["ı", "▁ı", "ç", "▁ç", "ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
+    
+    tr_alone = ["▁a", "▁e", "▁i", "▁o", "▁u"]
     
     tr_long = ["â", "▁â", "î", "▁î", "û", "▁û"]
     
-    tr_seng = ["q", "▁q", "w", "▁w", "x", "▁x"]
+    tr_seng = ["q", "w", "x"]
     
     tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
     
@@ -279,6 +282,12 @@ def train_tokenizer_ui(
             if tag not in user_symbols:
                 user_symbols.append(tag)
         yield log(f"🔤 Added {len(tr_spec)} Turkish Special Characters to Tokenizer")
+                
+    if tr_alone_chk:
+        for tag in tr_alone:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_alone)} Turkish Standalone Letters to Tokenizer")
                 
     if tr_long_chk:
         for tag in tr_long:
@@ -906,7 +915,8 @@ def process_design_vocab(
     strip_en_tokens, 
     strip_punct,
     apply_injections, 
-    convert_lowercase,
+    convert_all_lower,
+    convert_letters_lower,
     target_pres_letters,
     target_pres_punct,
     target_token_case,
@@ -1063,11 +1073,21 @@ def process_design_vocab(
             "is_control": True, "is_unknown": False, "is_unused": False, "is_byte": False
         })
         
-        # Rule 10: Convert Remaining EN Tokens to Lowercase
-        if convert_lowercase:
+        # Rule 10: Convert Tokens to Lowercase
+        if convert_all_lower or convert_letters_lower:
             for entry in cleaned_data:
-                if en_base_start <= entry.get("id", -1) <= en_base_end:
-                    orig_piece = entry.get("piece", "")
+                orig_piece = entry.get("piece", "")
+                should_lower = False
+                
+                if convert_all_lower:
+                    should_lower = True
+                elif convert_letters_lower:
+                    # Check if the piece is exactly a single English letter (with or without the space marker)
+                    test_str = orig_piece[1:] if orig_piece.startswith("▁") else orig_piece
+                    if len(test_str) == 1 and test_str.isalpha() and test_str.isascii():
+                        should_lower = True
+                
+                if should_lower:
                     lowered_piece = orig_piece.lower()
                     if orig_piece != lowered_piece:
                         entry["piece"] = lowered_piece
@@ -1146,10 +1166,12 @@ def process_design_vocab(
         logs.append("7. Injected ▁[TR] (ID: 3) and ▁[EN] (ID: 4)")
         logs.append(f"8. Last piece that is {pad_id} is set as <pad>")
         
-        if convert_lowercase:
-            logs.append(f"9. Converted {lowered_count} remaining English tokens to lowercase.")
+        if convert_all_lower:
+            logs.append(f"9. Converted {lowered_count} tokens to lowercase (All).")
+        elif convert_letters_lower:
+            logs.append(f"9. Converted {lowered_count} English tokens to lowercase (Letters Only).")
         else:
-            logs.append("9. English token casing preserved.")
+            logs.append("9. Token casing preserved.")
             
         if missing_injections:
             logs.append(f"10. Applied {len(missing_injections)} Required Injections: {', '.join(injected_items_log)}")
@@ -1311,6 +1333,32 @@ def open_tokenizer_folder():
 # UI CREATION
 # ======================================================
 
+def update_token_stats(style, emotion, tr_spec, tr_alone, tr_long, tr_seng, tr_turk, tr_punc, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
+    from core import core
+    count = 3  # <s>, </s>, <unk>
+    
+    # language list
+    count += len(core.language_list())
+    
+    if style: count += 23
+    if emotion: count += 37
+    if tr_spec: count += 12
+    if tr_alone: count += 6
+    if tr_long: count += 6
+    if tr_seng: count += 6
+    if tr_turk: count += 30
+    if tr_punc: count += 18
+    
+    if custom_str:
+        custom_tokens = [x.strip() for x in custom_str.split("|") if x.strip()]
+        count += len(custom_tokens)
+        
+    if inj_syl: count += int(syl_c)
+    if inj_wrd: count += int(wrd_c)
+    
+    total = count + 1799
+    return count, 1799, total
+
 def create_demo():
     
     lang_options = core.language_list()
@@ -1431,6 +1479,7 @@ def create_demo():
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_TR_SPECIAL"))
                 tr_spec_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_SPEC"), value=False)
+                tr_alone_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_ALONE"), value=False)
                 tr_seng_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SENG"), value=False)
                 tr_turk_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TURK"), value=False)
                 tr_long_chk = gr.Checkbox(label=_("TOKENIZER_CHK_LONG"), value=False)
@@ -1458,7 +1507,7 @@ def create_demo():
                 gr.Markdown(_("TOKENIZER_HEADER_ADVANCED")) 
                 tok_sentence_size = gr.Number(
                     label=_("TOKENIZER_LABEL_ADV_SENT_SIZE"), 
-                    value=0, 
+                    value=10000000, 
                     precision=0, 
                     info=_("TOKENIZER_INFO_ADV_SENT_SIZE")
                 )
@@ -1470,12 +1519,12 @@ def create_demo():
                 )
                 tok_train_ext = gr.Checkbox(
                     label=_("TOKENIZER_CHK_ADV_TRAIN_EXT"), 
-                    value=False, 
+                    value=True, 
                     info=_("TOKENIZER_INFO_ADV_TRAIN_EXT")
                 )                
                 tok_shuffle = gr.Checkbox(
                     label=_("TOKENIZER_CHK_ADV_SHUFFLE"), 
-                    value=False, 
+                    value=True, 
                     info=_("TOKENIZER_INFO_ADV_SHUFFLE")
                 )
                 tok_hard_vocab = gr.Checkbox(
@@ -1488,6 +1537,14 @@ def create_demo():
                     value=False, 
                     info=_("TOKENIZER_INFO_ADV_BYTE_FALLBACK")
                 )                
+                
+            init_add, init_eng, init_tot = update_token_stats(False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
+            with gr.Group():
+                gr.Markdown(_("TOKENIZER_HEADER_STATS"))
+                with gr.Row():
+                    stat_added = gr.Number(label=_("TOKENIZER_LABEL_ADDED_TOKENS"), value=init_add, interactive=False)
+                    stat_english = gr.Number(label=_("TOKENIZER_LABEL_ENG_TOKENS"), value=init_eng, interactive=False)
+                    stat_total = gr.Number(label=_("TOKENIZER_LABEL_TOT_TOKENS"), value=init_tot, interactive=False)
                       
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
@@ -1521,7 +1578,8 @@ def create_demo():
             special_input,
             style_chk,             
             emotion_chk,           
-            tr_spec_chk,           
+            tr_spec_chk,
+            tr_alone_chk,
             tr_seng_chk,
             tr_turk_chk,
             tr_long_chk,
@@ -1564,6 +1622,18 @@ def create_demo():
             inputs=[],
             outputs=[]
         )
+        
+        stat_inputs = [
+            style_chk, emotion_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, 
+            tr_seng_chk, tr_turk_chk, tr_punc_chk, special_input,
+            tok_inject_syl, tok_syl_count, tok_inject_wrd, tok_wrd_count
+        ]
+        for component in stat_inputs:
+            component.change(
+                fn=update_token_stats,
+                inputs=stat_inputs,
+                outputs=[stat_added, stat_english, stat_total]
+            )
                   
         gr.HTML("<div style='height:10px'></div>")
 
@@ -1859,7 +1929,8 @@ def create_demo():
                     design_source_strip_en = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_ENG"), value=False)
                     design_source_strip_punct = gr.Checkbox(label=_("TOKENIZER_CHK_STRIP_SRC_PUNCT"), value=False) 
                     design_source_apply_injections = gr.Checkbox(label=_("TOKENIZER_CHK_APPLY_INJ"), value=False)
-                    design_source_conv_lower = gr.Checkbox(label=_("TOKENIZER_CHK_CONV_LOWER"), value=False)
+                    design_source_conv_all_lower = gr.Checkbox(label="Convert All to Lowercase", value=False)
+                    design_source_conv_letters_lower = gr.Checkbox(label="Convert Letters to Lowercase", value=False)
                 with gr.Column(scale=1):
                     gr.Markdown(_("TOKENIZER_HEADER_DESIGN_TARGET"))
                     design_target_pres_letters = gr.Checkbox(label=_("TOKENIZER_CHK_PRES_TGT_LETTERS"), value=True)
@@ -1918,7 +1989,8 @@ def create_demo():
                     design_source_strip_en, 
                     design_source_strip_punct,
                     design_source_apply_injections, 
-                    design_source_conv_lower,
+                    design_source_conv_all_lower,
+                    design_source_conv_letters_lower,
                     # Target Flags
                     design_target_pres_letters,
                     design_target_pres_punct,
