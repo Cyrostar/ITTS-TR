@@ -92,7 +92,11 @@ class LazyModule(ModuleType):
                         f".{self.target}", self.package
                     )
             except Exception as e:
-                raise ImportError(f"Lazy import of {repr(self)} failed") from e
+                if self.target.startswith("speechbrain.integrations."):
+                    # ITTS-TR Patched: Suppress all integrations lazy import crashes for pyannote.audio
+                    self.lazy_module = None
+                else:
+                    raise ImportError(f"Lazy import of {repr(self)} failed") from e
 
         return self.lazy_module
 
