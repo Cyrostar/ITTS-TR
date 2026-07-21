@@ -97,32 +97,38 @@ def process_dataset_ui(dataset_id, output_folder_name, resample_sr, lang, save_e
         if dataset_id == "google/fleurs":
             lang = get_fleurs_subset(lang)
             
-        yield log(f"⬇️ Loading source: {dataset_id} (Targeting '{lang}' subset)...")
-        
         HF_TOKEN = os.environ.get("HF_TOKEN")
+        cache_dir = os.path.join(core.path_root, "models", "hf", "datasets")
+        os.makedirs(cache_dir, exist_ok=True)
         
-        try:
-            # Attempt 1: Standard modern dataset loading (uses subset 'configs')
-            ds = load_dataset(dataset_id, lang, split="train", token=HF_TOKEN)
-        except Exception as e:
-            error_msg = str(e).lower()
-            # Broadened to catch BOTH script errors AND local cache mismatch errors
-            if "scripts are no longer supported" in error_msg or "couldn't find cache" in error_msg or "builderconfig" in error_msg:
-                yield log(f"⚠️ Cache/Script mismatch detected. Rerouting '{lang}' to Parquet data directory...")
-                # The Parquet bot flattens configs. We must use data_dir instead of config name.
-                ds = load_dataset(dataset_id, data_dir=lang, split="train", token=HF_TOKEN, revision="refs/convert/parquet")
-            else:
-                yield log(f"⚠️ Subset '{lang}' not found. Falling back to default root loading...")
-                try:
-                    # Attempt 2: Fallback for standard/flat datasets without language subsets
-                    ds = load_dataset(dataset_id, split="train", token=HF_TOKEN)
-                except Exception as root_e:
-                    root_error_msg = str(root_e).lower()
-                    if "scripts are no longer supported" in root_error_msg or "couldn't find cache" in root_error_msg:
-                        yield log("⚠️ Legacy/Cache issue at root. Rerouting to Parquet branch...")
-                        ds = load_dataset(dataset_id, split="train", token=HF_TOKEN, revision="refs/convert/parquet")
-                    else:
-                        raise root_e
+        if dataset_id == "erenfazlioglu/turkishvoicedataset":
+            yield log(f"⬇️ Loading source: {dataset_id} (No subset needed)...")
+            ds = load_dataset(dataset_id, split="train", token=HF_TOKEN, cache_dir=cache_dir)
+        else:
+            yield log(f"⬇️ Loading source: {dataset_id} (Targeting '{lang}' subset)...")
+            
+            try:
+                # Attempt 1: Standard modern dataset loading (uses subset 'configs')
+                ds = load_dataset(dataset_id, lang, split="train", token=HF_TOKEN, cache_dir=cache_dir)
+            except Exception as e:
+                error_msg = str(e).lower()
+                # Broadened to catch BOTH script errors AND local cache mismatch errors
+                if "scripts are no longer supported" in error_msg or "couldn't find cache" in error_msg or "builderconfig" in error_msg:
+                    yield log(f"⚠️ Cache/Script mismatch detected. Rerouting '{lang}' to Parquet data directory...")
+                    # The Parquet bot flattens configs. We must use data_dir instead of config name.
+                    ds = load_dataset(dataset_id, data_dir=lang, split="train", token=HF_TOKEN, revision="refs/convert/parquet", cache_dir=cache_dir)
+                else:
+                    yield log(f"⚠️ Subset '{lang}' not found. Falling back to default root loading...")
+                    try:
+                        # Attempt 2: Fallback for standard/flat datasets without language subsets
+                        ds = load_dataset(dataset_id, split="train", token=HF_TOKEN, cache_dir=cache_dir)
+                    except Exception as root_e:
+                        root_error_msg = str(root_e).lower()
+                        if "scripts are no longer supported" in root_error_msg or "couldn't find cache" in root_error_msg:
+                            yield log("⚠️ Legacy/Cache issue at root. Rerouting to Parquet branch...")
+                            ds = load_dataset(dataset_id, split="train", token=HF_TOKEN, revision="refs/convert/parquet", cache_dir=cache_dir)
+                        else:
+                            raise root_e
             
     except Exception as e:
         yield log(f"❌ Load Error: {str(e)}")
