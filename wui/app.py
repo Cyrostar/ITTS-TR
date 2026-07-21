@@ -25,6 +25,7 @@ import dataset
 import tokenizer
 import preprocessor
 import trainer
+import finetune
 import inference
 import tts
 import sts
@@ -148,6 +149,9 @@ with gr.Blocks() as root_demo:
             
         with gr.Tab(_("TRAINER")):
             trainer.create_demo()
+            
+        with gr.Tab(_("FINETUNE")):
+            finetune.create_demo()
             
         with gr.Tab(_("INFERENCE")):
             inference.create_demo()

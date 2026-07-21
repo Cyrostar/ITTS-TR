@@ -44,7 +44,7 @@ STOP_TRAINING = False
 def stop_training_fn():
     global STOP_TRAINING
     STOP_TRAINING = True
-    return _("TRAINER_MSG_STOPPING")
+    return _("FINETUNE_MSG_STOPPING")
     
 # ==========================================
 # Helpers
@@ -55,7 +55,7 @@ def get_checkpoint_list(run_name):
     if not run_name:
         return gr.Dropdown(choices=[])
     
-    run_dir = os.path.join(core.path_base, "trains", run_name)
+    run_dir = os.path.join(core.path_base, "finetunes", run_name)
     if not os.path.exists(run_dir):
         return gr.Dropdown(choices=[])
     
@@ -63,12 +63,12 @@ def get_checkpoint_list(run_name):
     files = [f for f in os.listdir(run_dir) if f.endswith(".pth") and f != "gpt.pth"]
     return gr.Dropdown(choices=sorted(files))
 
-def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as_base=False, project_name=None):
+def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map):
     """Unwraps the selected checkpoint and saves it as gpt.pth in the same folder."""
     if not run_name or not selected_file:
         return "❌ Error: Selection missing."
     
-    run_dir = os.path.join(core.path_base, "trains", run_name)
+    run_dir = os.path.join(core.path_base, "finetunes", run_name)
     ckpt_path = os.path.join(run_dir, selected_file)
     output_path = os.path.join(run_dir, "gpt.pth")
     
@@ -94,13 +94,6 @@ def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as
         torch.save(new_state, output_path)
         
         msg = f"✅ Successfully unwrapped {selected_file} ➔ gpt.pth"
-        
-        if use_as_base and project_name:
-            base_model_path = os.path.join(core.path_base, "projects", project_name, "models", "base_model.pth")
-            os.makedirs(os.path.dirname(base_model_path), exist_ok=True)
-            shutil.copy2(output_path, base_model_path)
-            msg += f"\n✅ Saved copy as base model: {base_model_path}"
-            
         return msg
     except Exception as e:
         return f"❌ Error: {str(e)}"
@@ -410,9 +403,9 @@ def evaluate(model, loader, device, use_duration, duration_dropout):
 # 4. TRAINING LOOP
 # ==========================================
 
-def train_official_ui(
+def finetune_official_ui(
     selected_project, config_path, tokenizer_path, train_manifest, val_manifest, vector_folder_name, 
-    run_name, base_model_type, resume_ckpt, epochs, batch_size, lr, grad_accum, num_workers, 
+    run_name, resume_ckpt, epochs, batch_size, lr, grad_accum, num_workers, 
     use_duration, duration_dropout, save_every, use_compile, case_format, tok_type, use_merged,
     resize_vocab, expand_text, expand_audio,
     lang, wordify, abbrev, extract
@@ -421,7 +414,7 @@ def train_official_ui(
     STOP_TRAINING = False
 
     logs = []
-    current_piece = _("TRAINER_VALUE_PIECE")
+    current_piece = _("FINETUNE_VALUE_PIECE")
     
     def update_ui(msg=None, status_msg="Initializing..."):
         if msg: logs.append(msg)
@@ -435,7 +428,7 @@ def train_official_ui(
         return
     if not run_name: run_name = selected_project
 
-    trains_root = os.path.join(core.path_base, "trains")
+    trains_root = os.path.join(core.path_base, "finetunes")
     run_dir = os.path.join(trains_root, run_name)
     os.makedirs(run_dir, exist_ok=True)
     yield update_ui(f"📂 Global Logs Folder: {run_dir}")
@@ -537,16 +530,11 @@ def train_official_ui(
     
     # --- MODEL ROUTING LOGIC ---
     models_dir = core.models_directory()
-    if base_model_type == "blank":
-        resolved_base_ckpt = os.path.join(models_dir, "blank_model.pth")
-        yield update_ui(f"🧠 Using blank untrained model: {resolved_base_ckpt}")
-    else:
-        resolved_base_ckpt = os.path.join(models_dir, "official_model.pth")
-        if not os.path.exists(resolved_base_ckpt):
-            resolved_base_ckpt = os.path.join(core.path_base, "indextts", "checkpoints", "gpt.pth")
-            yield update_ui(f"⚠️ Notice: Resized official model not found. Falling back to base checkpoint: {resolved_base_ckpt}")
-        else:
-            yield update_ui(f"🧠 Using resized official model: {resolved_base_ckpt}")
+    resolved_base_ckpt = os.path.join(models_dir, "base_model.pth")
+    if not os.path.exists(resolved_base_ckpt):
+        yield update_ui(f"❌ Error: Base model not found at {resolved_base_ckpt}. Please unwrap a base model from Trainer first.", "Error")
+        return
+    yield update_ui(f"🧠 Using base model: {resolved_base_ckpt}")
             
     try:
         model, updated_cfg = build_model_smart(
@@ -856,12 +844,12 @@ def auto_discover_project_files(project_name):
 
     return config_path, tok_path, train_manifest, val_manifest, vector_folder, status_msg, is_merged, tok_type, c_format, lang, wordify, abbrev, extract
 
-def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, _, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract):
+def resume_finetune_ui(proj, config, tokenizer, train, val, vec, name, _, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract):
     if not name.strip():
         yield "❌ Run Name is required to resume. Please enter the folder name.", "Error", "Piece:"
         return
     
-    trains_root = os.path.join(core.path_base, "trains")
+    trains_root = os.path.join(core.path_base, "finetunes")
     run_dir = os.path.join(trains_root, name)
 
     interrupted_path = os.path.join(run_dir, "gpt_interrupted.pth")
@@ -876,10 +864,10 @@ def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_mode
     
     if os.path.exists(interrupted_path):
         resume_path = interrupted_path
-        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
+        yield from finetune_official_ui(proj, config, tokenizer, train, val, vec, name, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
     elif os.path.exists(latest_path):
         resume_path = latest_path
-        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
+        yield from finetune_official_ui(proj, config, tokenizer, train, val, vec, name, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
     else:
         yield f"❌ Could not find any checkpoint (gpt_interrupted.pth or gpt_latest.pth) in: {run_dir}", "Error"
     
@@ -890,23 +878,23 @@ def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_mode
 def create_demo():
     
     with gr.Blocks() as demo:
-        gr.Markdown(_("TRAINER_HEADER"))
-        gr.Markdown(_("TRAINER_DESC"))
+        gr.Markdown(_("FINETUNE_HEADER"))
+        gr.Markdown(_("FINETUNE_DESC"))
 
         with gr.Row():
             with gr.Column(scale=1):
                 current_projects = list_available_projects()
                 project_dd = gr.Dropdown(
-                    label=_("TRAINER_LABEL_SELECT_PROJECT"), 
+                    label=_("FINETUNE_LABEL_SELECT_PROJECT"), 
                     choices=list_available_projects(), 
                     value=current_projects[0] if current_projects else None,
                     interactive=True
                 )
-                refresh_btn = gr.Button(_("TRAINER_BTN_SCAN_PROJECTS"), size="lg")
+                refresh_btn = gr.Button(_("FINETUNE_BTN_SCAN_PROJECTS"), size="lg")
                 with gr.Row():
-                    use_duration = gr.Checkbox(label=_("TRAINER_CHK_USE_DURATION"), value=True)
-                    use_merged = gr.Checkbox(label=_("TRAINER_CHK_USE_MERGED"), value=False)
-                    use_compile = gr.Checkbox(label=_("TRAINER_CHK_USE_COMPILE"), value=False)
+                    use_duration = gr.Checkbox(label=_("FINETUNE_CHK_USE_DURATION"), value=True)
+                    use_merged = gr.Checkbox(label=_("FINETUNE_CHK_USE_MERGED"), value=False)
+                    use_compile = gr.Checkbox(label=_("FINETUNE_CHK_USE_COMPILE"), value=False)
             with gr.Column(scale=1):
                 with gr.Row():
                     tok_type_dd = gr.Dropdown(
@@ -917,24 +905,24 @@ def create_demo():
                     )
                 with gr.Row(visible=True) as case_row:
                     case_format = gr.Dropdown(
-                        label=_("TRAINER_LABEL_CASE_FORMAT"),
+                        label=_("FINETUNE_LABEL_CASE_FORMAT"),
                         choices=["lowercase", "uppercase"],
                         value="lowercase",
                         interactive=True
                     )          
         with gr.Row():
-            run_name = gr.Textbox(label=_("TRAINER_LABEL_RUN_NAME"), value="", placeholder=_("TRAINER_PLACEHOLDER_RUN_NAME"))
-            base_model_dd = gr.Dropdown(label=_("TRAINER_LABEL_BASE_MODEL"), choices=["official", "blank"], value="official", interactive=True)
+            run_name = gr.Textbox(label=_("FINETUNE_LABEL_RUN_NAME"), value="", placeholder=_("FINETUNE_PLACEHOLDER_RUN_NAME"))
+
 
         with gr.Row(visible=True): 
-            config = gr.Textbox(label=_("TRAINER_LABEL_CONFIG"), interactive=False)
-            tokenizer = gr.Textbox(label=_("TRAINER_LABEL_TOKENIZER"), interactive=False)
+            config = gr.Textbox(label=_("FINETUNE_LABEL_CONFIG"), interactive=False)
+            tokenizer = gr.Textbox(label=_("FINETUNE_LABEL_TOKENIZER"), interactive=False)
             
         
         with gr.Row(visible=True):
-            vector_folder = gr.Textbox(label=_("TRAINER_LABEL_VECTOR_FOLDER"), interactive=False)
-            train_manifest = gr.Textbox(label=_("TRAINER_LABEL_TRAIN_MANIFEST"), interactive=False)
-            val_manifest = gr.Textbox(label=_("TRAINER_LABEL_VAL_MANIFEST"), interactive=False)
+            vector_folder = gr.Textbox(label=_("FINETUNE_LABEL_VECTOR_FOLDER"), interactive=False)
+            train_manifest = gr.Textbox(label=_("FINETUNE_LABEL_TRAIN_MANIFEST"), interactive=False)
+            val_manifest = gr.Textbox(label=_("FINETUNE_LABEL_VAL_MANIFEST"), interactive=False)
              
         tok_type_dd.change(
             fn=lambda t: gr.update(visible=(t == "itts-tr")),
@@ -943,24 +931,24 @@ def create_demo():
         )
         
         with gr.Row():
-            epochs = gr.Slider(1, 100, 10, label=_("TRAINER_SLIDER_EPOCHS"))
-            bs = gr.Slider(1, 32, 8, label=_("TRAINER_SLIDER_BATCH_SIZE"))
-            grad_accum = gr.Slider(1, 16, 4, label=_("TRAINER_SLIDER_GRAD_ACCUM"))
-            lr = gr.Slider(1e-6, 1e-3, 2e-5, label=_("TRAINER_SLIDER_LR"))
+            epochs = gr.Slider(1, 100, 10, label=_("FINETUNE_SLIDER_EPOCHS"))
+            bs = gr.Slider(1, 32, 8, label=_("FINETUNE_SLIDER_BATCH_SIZE"))
+            grad_accum = gr.Slider(1, 16, 4, label=_("FINETUNE_SLIDER_GRAD_ACCUM"))
+            lr = gr.Slider(1e-6, 1e-3, 2e-5, label=_("FINETUNE_SLIDER_LR"))
         
         with gr.Row():
-            save_every = gr.Slider(100, 5000, 1000, step=100, label=_("TRAINER_SLIDER_SAVE_EVERY"))
-            num_workers_slider = gr.Slider(0, 32, 8, step=1, label=_("TRAINER_SLIDER_WORKERS"))
-            duration_dropout = gr.Slider(0.0, 1.0, 0.3, label=_("TRAINER_SLIDER_DROPOUT"))
+            save_every = gr.Slider(100, 5000, 1000, step=100, label=_("FINETUNE_SLIDER_SAVE_EVERY"))
+            num_workers_slider = gr.Slider(0, 32, 8, step=1, label=_("FINETUNE_SLIDER_WORKERS"))
+            duration_dropout = gr.Slider(0.0, 1.0, 0.3, label=_("FINETUNE_SLIDER_DROPOUT"))
             
             resume_ckpt = gr.Textbox(visible=False)
             
         # --- 3. ADVANCED OPTIONS (Hidden to reduce clutter) ---
-        with gr.Accordion(_("TRAINER_ACC_ADVANCED"), open=False, elem_classes="wui-accordion"):
+        with gr.Accordion(_("FINETUNE_ACC_ADVANCED"), open=False, elem_classes="wui-accordion"):
             with gr.Row():
-                resize_vocab = gr.Checkbox(label=_("TRAINER_CHK_RESIZE_VOCAB"), value=True)
-                expand_text = gr.Checkbox(label=_("TRAINER_CHK_EXPAND_TEXT"), value=True)
-                expand_audio = gr.Checkbox(label=_("TRAINER_CHK_EXPAND_AUDIO"), value=True)
+                resize_vocab = gr.Checkbox(label=_("FINETUNE_CHK_RESIZE_VOCAB"), value=True)
+                expand_text = gr.Checkbox(label=_("FINETUNE_CHK_EXPAND_TEXT"), value=True)
+                expand_audio = gr.Checkbox(label=_("FINETUNE_CHK_EXPAND_AUDIO"), value=True)
                 
         # --- HIDDEN STATES FOR CONFIG VARIABLES ---
         state_lang = gr.State("tr")
@@ -970,8 +958,8 @@ def create_demo():
     
         start_btn = gr.Button(_("COMMON_BTN_START"), variant="primary")
         
-        status_box = gr.Textbox(label=_("TRAINER_LABEL_STATUS"), value=_("COMMON_STATUS_READY"), lines=1, interactive=False)
-        piece_box = gr.Textbox(label=_("TRAINER_LABEL_PIECE"), value=_("TRAINER_VALUE_PIECE"), lines=2, interactive=False) 
+        status_box = gr.Textbox(label=_("FINETUNE_LABEL_STATUS"), value=_("COMMON_STATUS_READY"), lines=1, interactive=False)
+        piece_box = gr.Textbox(label=_("FINETUNE_LABEL_PIECE"), value=_("FINETUNE_VALUE_PIECE"), lines=2, interactive=False) 
         logs = gr.Textbox(label=_("COMMON_LABEL_LOGS"), lines=15, autoscroll=True)
                
         with gr.Row():
@@ -979,17 +967,17 @@ def create_demo():
             resume_btn = gr.Button(_("COMMON_BTN_RESUME"))
             
         gr.HTML("<div style='height:16px'></div>")
-        gr.Markdown(_("TRAINER_HEADER_EXPORT"))
+        gr.Markdown(_("FINETUNE_HEADER_EXPORT"))
         with gr.Row():
             with gr.Column(scale=1):
-                ckpt_selector = gr.Dropdown(label=_("TRAINER_LABEL_CKPT_SELECT"), choices=[])
-                refresh_ckpt_btn = gr.Button(_("TRAINER_BTN_REFRESH_CKPT"))
-                unwrap_btn = gr.Button(_("TRAINER_BTN_UNWRAP"), variant="stop")
+                ckpt_selector = gr.Dropdown(label=_("FINETUNE_LABEL_CKPT_SELECT"), choices=[])
+                refresh_ckpt_btn = gr.Button(_("FINETUNE_BTN_REFRESH_CKPT"))
+                unwrap_btn = gr.Button(_("FINETUNE_BTN_UNWRAP"), variant="stop")
             with gr.Column(scale=1):
-                conformer_map_check = gr.Checkbox(label=_("TRAINER_CHK_CONFORMER"), value=True)
-                base_model_check = gr.Checkbox(label="Use as base model", value=False)
+                conformer_map_check = gr.Checkbox(label=_("FINETUNE_CHK_CONFORMER"), value=True)
+
         
-        unwrap_status = gr.Textbox(label=_("TRAINER_LABEL_UNWRAP_STATUS"), placeholder=_("TRAINER_PLACEHOLDER_UNWRAP"), interactive=False)
+        unwrap_status = gr.Textbox(label=_("FINETUNE_LABEL_UNWRAP_STATUS"), placeholder=_("FINETUNE_PLACEHOLDER_UNWRAP"), interactive=False)
 
         refresh_ckpt_btn.click(
             get_checkpoint_list, 
@@ -999,7 +987,7 @@ def create_demo():
         
         unwrap_btn.click(
             unwrap_and_save_handler, 
-            inputs=[run_name, ckpt_selector, conformer_map_check, base_model_check, project_dd],
+            inputs=[run_name, ckpt_selector, conformer_map_check],
             outputs=[unwrap_status]
         )
         
@@ -1057,16 +1045,16 @@ def create_demo():
         
         inputs = [
             project_dd, config, tokenizer, train_manifest, val_manifest, vector_folder, 
-            run_name, base_model_dd, resume_ckpt, epochs, bs, lr, grad_accum, num_workers_slider, 
+            run_name, resume_ckpt, epochs, bs, lr, grad_accum, num_workers_slider, 
             use_duration, duration_dropout, save_every, use_compile, case_format, tok_type_dd, 
             use_merged, resize_vocab, expand_text, expand_audio,
             state_lang, state_wordify, state_abbrev, state_extract
         ]
         
         # Added piece_box to outputs
-        start_btn.click(train_official_ui, inputs=inputs, outputs=[logs, status_box, piece_box])
+        start_btn.click(finetune_official_ui, inputs=inputs, outputs=[logs, status_box, piece_box])
         stop_btn.click(stop_training_fn, outputs=logs)
-        resume_btn.click(resume_official_ui, inputs=inputs, outputs=[logs, status_box, piece_box])
+        resume_btn.click(resume_finetune_ui, inputs=inputs, outputs=[logs, status_box, piece_box])
 
         # =============
         # DOCUMENTATION
