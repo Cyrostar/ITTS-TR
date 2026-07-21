@@ -19,6 +19,14 @@ Bu yöntem, tek ve uzun formatlı bir ses dosyasını (örn. podcast veya sesli 
 - **VAD ve Konuşmacı Ayrıştırma (Diarization):** Arka planda sistem, Ses Aktivite Algılaması (Voice Activity Detection - VAD) gerçekleştirmek, gerçek konuşmayı izole etmek ve uzun sessizlikleri yok saymak için `pyannote/speaker-diarization-3.1` modelini başlatır. *(Not: Bu işlem geçerli bir `HF_TOKEN` ortam değişkeni gerektirir).*
 - **Whisper Transkripsiyonu:** İzole edilen her konuşma bölümü, hedef dilinizde son derece doğru bir metin transkripti oluşturmak için `large-v3` Whisper modeline beslenir.
 
+#### 🔀 Yöntem 3: Mevcut Veri Setlerini Birleştir (Merge Existing Datasets)
+
+Bu yöntem, önceden işlenmiş (`metadata.csv` ve `wavs/` formatına dönüştürülmüş) iki veya daha fazla veri setini tek ve birleşik bir veri setinde sorunsuz bir şekilde birleştirmenize olanak tanır.
+
+- **Birleştirilecek Veri Setleri (Select Datasets):** Mevcut veri setleri dizininizden birden fazla veri seti seçin.
+- **Yeni Veri Seti Adı (New Dataset Name):** Yeni birleşik veri setinin adını belirleyin.
+- **Dosya Kopyalama:** Birleştirme işlemi, `.wav` dosyalarını yeni dizine güvenli bir şekilde kopyalayarak ve meta verileri yeniden yazarak orijinal veri setlerini bozulmadan korur.
+
 #### ⚙️ Temel Yapılandırma ve Kontroller
 
 Her iki işleme yöntemi de ses verilerinizi standartlaştırmak için kritik parametreleri paylaşır.

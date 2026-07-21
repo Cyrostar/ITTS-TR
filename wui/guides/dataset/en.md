@@ -19,6 +19,14 @@ This method processes a single, long-form audio file (e.g., a podcast or audiobo
 - **VAD & Diarization:** Behind the scenes, the system initializes `pyannote/speaker-diarization-3.1` to perform Voice Activity Detection, isolating actual speech and ignoring long silences. *(Note: This requires a valid `HF_TOKEN` environment variable).*
 - **Whisper Transcription:** Each isolated speech segment is fed into the `large-v3` Whisper model to generate a highly accurate text transcription in your target language.
 
+#### 🔀 Method 3: Merge Existing Datasets
+
+This method allows you to seamlessly combine two or more existing datasets (that have already been processed into `metadata.csv` and `wavs/` format) into a single, unified dataset.
+
+- **Select Datasets to Merge:** Choose multiple datasets from your existing datasets directory.
+- **New Dataset Name:** Specify the name of the new combined dataset.
+- **Copying Logic:** The merging process safely copies the `.wav` files into the new directory and rewrites the metadata, preserving the original datasets untouched.
+
 #### ⚙️ Core Configuration & Controls
 
 Both processing methods share critical parameters for standardizing your audio data.

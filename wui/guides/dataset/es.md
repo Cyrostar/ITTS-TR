@@ -19,6 +19,14 @@ Este método procesa un archivo de audio largo único (ej., un podcast o audioli
 - **VAD y Diarización:** Detrás de escena, el sistema inicializa `pyannote/speaker-diarization-3.1` para realizar Detección de Actividad de Voz (Voice Activity Detection), aislando el habla real e ignorando los silencios largos. *(Nota: Esto requiere una variable de entorno `HF_TOKEN` válida)*.
 - **Transcripción Whisper:** Cada segmento de habla aislado se introduce en el modelo Whisper `large-v3` para generar una transcripción de texto de alta precisión en su idioma objetivo.
 
+#### 🔀 Método 3: Combinar Datasets Existentes (Merge Existing Datasets)
+
+Este método le permite combinar sin problemas dos o más datasets existentes (que ya han sido procesados al formato `metadata.csv` y `wavs/`) en un solo dataset unificado.
+
+- **Seleccionar Datasets para Combinar (Select Datasets):** Elija múltiples datasets de su directorio de datasets existentes.
+- **Nuevo Nombre de Dataset (New Dataset Name):** Especifique el nombre del nuevo dataset combinado.
+- **Lógica de Copia:** El proceso de combinación copia de manera segura los archivos `.wav` en el nuevo directorio y reescribe los metadatos, preservando los datasets originales intactos.
+
 #### ⚙️ Configuración y Controles Centrales
 
 Ambos métodos de procesamiento comparten parámetros críticos para estandarizar sus datos de audio.
