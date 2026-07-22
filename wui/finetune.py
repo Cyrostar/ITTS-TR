@@ -440,7 +440,7 @@ def finetune_official_ui(
 
     vector_root_path = None
     if vector_folder_name:
-        vector_root_path = os.path.join(core.path_base, "projects", selected_project, "extractions", vector_folder_name)
+        vector_root_path = os.path.join(core.path_base, "projects", selected_project, "finetune", "extractions", vector_folder_name)
         if os.path.exists(vector_root_path):
             yield update_ui(f"🔗 Vectors linked to: {vector_root_path}")
             vector_root_path = Path(vector_root_path)
@@ -529,7 +529,7 @@ def finetune_official_ui(
     yield update_ui("🏗️ Building Model & Resizing Vocabulary...")
     
     # --- MODEL ROUTING LOGIC ---
-    models_dir = core.models_directory()
+    models_dir = os.path.join(core.path_base, "projects", selected_project, "finetune", "models")
     resolved_base_ckpt = os.path.join(models_dir, "base_model.pth")
     if not os.path.exists(resolved_base_ckpt):
         yield update_ui(f"❌ Error: Base model not found at {resolved_base_ckpt}. Please unwrap a base model from Trainer first.", "Error")
@@ -764,12 +764,12 @@ def auto_discover_project_files(project_name):
         return "", "", "", "", "", "❌ No project selected", False, "itts-tr", "lowercase", "tr", True, False, False
 
     proj_dir = os.path.join(core.path_base, "projects", project_name)
-    config_path = os.path.join(proj_dir, "configs", "config.yaml")
+    config_path = os.path.join(proj_dir, "finetune", "configs", "config.yaml")
     
     if not os.path.exists(config_path):
         return "", "", "", "", "", f"❌ Config not found in {config_path}", False, "itts-tr", "lowercase", "tr", True, False, False
 
-    ext_dir = os.path.join(proj_dir, "extractions")
+    ext_dir = os.path.join(proj_dir, "finetune", "extractions")
     train_manifest = ""
     val_manifest = ""
     dataset_name = ""

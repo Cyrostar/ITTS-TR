@@ -45,8 +45,13 @@ def list_datasets(lang):
         return []
     return sorted([d for d in os.listdir(ds_path) if os.path.isdir(os.path.join(ds_path, d))])
 
-def ensure_config_exists():
-    project_config_path = os.path.join(core.configs_directory(), "config.yaml")
+def ensure_config_exists(base_model_type="official"):
+    if base_model_type == "base (finetune)":
+        p_name = core.project_name if core.project_name else "myproject"
+        project_config_path = os.path.join(core.path_base, "projects", p_name, "finetune", "configs", "config.yaml")
+    else:
+        project_config_path = os.path.join(core.configs_directory(), "config.yaml")
+        
     if os.path.exists(project_config_path):
         return project_config_path, f"✅ Found Project Config: {project_config_path}"
     return None, f"❌ Error: Project-specific config.yaml not found at: {project_config_path}."
@@ -169,6 +174,13 @@ class IndexTTSExtractor:
         models_dir = core.models_directory()
         if base_model_type == "blank":
             gpt_path = os.path.join(models_dir, "blank_model.pth")
+        elif base_model_type == "base (finetune)":
+            project_name = core.project_name if core.project_name else "myproject"
+            gpt_path = os.path.join(core.path_base, "projects", project_name, "finetune", "models", "base_model.pth")
+            if not os.path.exists(gpt_path):
+                error_msg = f"CRITICAL ERROR: Base model for finetuning not found at {gpt_path}."
+                print(error_msg)
+                raise FileNotFoundError(error_msg)
         else:
             gpt_path = os.path.join(models_dir, "official_model.pth")
             
@@ -277,7 +289,7 @@ def run_preprocessing_ui(
         add_lang_id = True
         selected_lang_id = core.language_id(lang_id)
         
-    config_path, cfg_msg = ensure_config_exists()
+    config_path, cfg_msg = ensure_config_exists(base_model_type)
     yield log(cfg_msg), ""
     if not config_path: return
     
@@ -308,7 +320,11 @@ def run_preprocessing_ui(
     dataset_root = os.path.join(core.path_base, "datasets", folder_lang, dataset_name)
     wavs_dir = os.path.join(dataset_root, "wavs")
     metadata_path = os.path.join(dataset_root, "metadata.csv")    
-    extract_root = core.extractions_directory()
+    if base_model_type == "base (finetune)":
+        p_name = core.project_name if core.project_name else "myproject"
+        extract_root = os.path.join(core.path_base, "projects", p_name, "finetune", "extractions")
+    else:
+        extract_root = core.extractions_directory()
     dataset_output_dir = os.path.join(extract_root, dataset_name)
     
     subdirs = {
@@ -323,10 +339,17 @@ def run_preprocessing_ui(
     try:
         p_name = core.project_name if core.project_name else "myproject"
         
-        if vocab_type == "merged":
-            sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_m_bpe.model")
+        if base_model_type == "base (finetune)":
+            tok_dir = os.path.join(core.path_base, "projects", p_name, "finetune", "tokenizers")
+            if vocab_type == "merged":
+                sp_path = os.path.join(tok_dir, f"{p_name}_m_bpe.model")
+            else:
+                sp_path = os.path.join(tok_dir, f"{p_name}_bpe.model")
         else:
-            sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_bpe.model")
+            if vocab_type == "merged":
+                sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_m_bpe.model")
+            else:
+                sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_bpe.model")
 
         if not os.path.exists(sp_path): 
             yield log(f"⚠️ Tokenizer not found at: {sp_path}"), ""
@@ -354,6 +377,7 @@ def run_preprocessing_ui(
         "is_merged_model": (vocab_type == "merged"),
         "lang_id": selected_lang_id, 
         "base_model": base_model_type,
+        "type": "finetuning" if base_model_type == "base (finetune)" else "training",
         "started_at": str(time.time())
     }
 
@@ -515,10 +539,10 @@ def create_demo():
                     )
                     base_model_dd = gr.Dropdown(
                         label=_("PREPROCESSOR_LABEL_BASE_MODEL"),
-                        choices=["official", "blank"],
+                        choices=["official", "blank", "base (finetune)"],
                         value="official",
                         interactive=True,
-                        visible=False
+                        visible=True
                     )
                     vocab_type_dd = gr.Dropdown(
                         label=_("PREPROCESSOR_LABEL_VOCAB_TYPE"), 

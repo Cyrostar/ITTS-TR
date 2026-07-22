@@ -63,7 +63,7 @@ def get_checkpoint_list(run_name):
     files = [f for f in os.listdir(run_dir) if f.endswith(".pth") and f != "gpt.pth"]
     return gr.Dropdown(choices=sorted(files))
 
-def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as_base=False, project_name=None):
+def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as_base=False, project_name=None, use_merged=False):
     """Unwraps the selected checkpoint and saves it as gpt.pth in the same folder."""
     if not run_name or not selected_file:
         return "❌ Error: Selection missing."
@@ -96,10 +96,46 @@ def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as
         msg = f"✅ Successfully unwrapped {selected_file} ➔ gpt.pth"
         
         if use_as_base and project_name:
-            base_model_path = os.path.join(core.path_base, "projects", project_name, "models", "base_model.pth")
+            new_proj_dir = os.path.join(core.path_base, "projects", project_name, "finetune")
+            
+            os.makedirs(new_proj_dir, exist_ok=True)
+            
+            old_config_dir = os.path.join(core.path_base, "projects", project_name, "configs")
+            new_config_dir = os.path.join(new_proj_dir, "configs")
+            if os.path.exists(old_config_dir):
+                shutil.copytree(old_config_dir, new_config_dir, dirs_exist_ok=True)
+                
+            base_model_path = os.path.join(new_proj_dir, "models", "base_model.pth")
             os.makedirs(os.path.dirname(base_model_path), exist_ok=True)
             shutil.copy2(output_path, base_model_path)
-            msg += f"\n✅ Saved copy as base model: {base_model_path}"
+            
+            tok_dir_new = os.path.join(new_proj_dir, "tokenizers")
+            os.makedirs(tok_dir_new, exist_ok=True)
+            
+            tok_dir_old = os.path.join(core.path_base, "projects", project_name, "tokenizers")
+            if use_merged:
+                old_tok_name = f"{project_name}_m_bpe.model"
+                new_tok_name = f"{project_name}_m_bpe.model"
+                old_vocab_name = f"{project_name}_m_bpe.vocab"
+                new_vocab_name = f"{project_name}_m_bpe.vocab"
+            else:
+                old_tok_name = f"{project_name}_bpe.model"
+                new_tok_name = f"{project_name}_bpe.model"
+                old_vocab_name = f"{project_name}_bpe.vocab"
+                new_vocab_name = f"{project_name}_bpe.vocab"
+                
+            old_tok_path = os.path.join(tok_dir_old, old_tok_name)
+            new_tok_path = os.path.join(tok_dir_new, new_tok_name)
+            old_vocab_path = os.path.join(tok_dir_old, old_vocab_name)
+            new_vocab_path = os.path.join(tok_dir_new, new_vocab_name)
+            
+            if os.path.exists(old_tok_path):
+                shutil.copy2(old_tok_path, new_tok_path)
+            if os.path.exists(old_vocab_path):
+                shutil.copy2(old_vocab_path, new_vocab_path)
+                
+            msg += f"\n✅ Created finetune folder: {project_name}/finetune"
+            msg += f"\n✅ Saved base model: {base_model_path}"
             
         return msg
     except Exception as e:
@@ -999,7 +1035,7 @@ def create_demo():
         
         unwrap_btn.click(
             unwrap_and_save_handler, 
-            inputs=[run_name, ckpt_selector, conformer_map_check, base_model_check, project_dd],
+            inputs=[run_name, ckpt_selector, conformer_map_check, base_model_check, project_dd, use_merged],
             outputs=[unwrap_status]
         )
         
