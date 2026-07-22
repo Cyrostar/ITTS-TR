@@ -8,6 +8,7 @@ call site.bat
 
 echo STARTING TENSORBOARD
 echo --------------------
-%PYTHON% -m tensorboard.main --logdir %ARTHA_HOME_DIR%/trains
+cd /d %ARTHA_HOME_DIR%
+%PYTHON% -m tensorboard.main --logdir_spec Trainer:trains,Finetune:finetunes
 
 cmd /k
