@@ -31,19 +31,20 @@ tts = None
 # Helpers
 # ==========================================
     
-def get_train_folders():
-    """Lists subdirectories in the 'trains' directory."""
+def get_train_folders(model_selection="Trained"):
+    """Lists subdirectories in the chosen directory."""
     try:
-        trains_path = os.path.join(core.path_base, "trains")
-        if not os.path.exists(trains_path):
+        base_dir = "finetunes" if model_selection == "Finetuned" else "trains"
+        target_path = os.path.join(core.path_base, base_dir)
+        if not os.path.exists(target_path):
             return []
         folders = [
-            d for d in os.listdir(trains_path) 
-            if os.path.isdir(os.path.join(trains_path, d))
+            d for d in os.listdir(target_path) 
+            if os.path.isdir(os.path.join(target_path, d))
         ]
         return sorted(folders)
     except Exception as e:
-        print(f"Error listing train folders: {e}")
+        print(f"Error listing {base_dir} folders: {e}")
         return []
     
 def unwrap_checkpoint(ckpt_path, run_dir):
@@ -75,13 +76,13 @@ def sync_config_to_checkpoint(cfg, ckpt_path):
     except: pass
     return cfg
     
-def auto_discover_inference_settings(folder_name):
+def auto_discover_inference_settings(folder_name, model_selection="Trained"):
     """Automatically reads case_format and tok_type from the project's config.yaml"""
     if not folder_name:
         return gr.update(value="lowercase"), gr.update(value="itts-tr")
         
-    # Check both potential config locations
-    cfg_path_train = os.path.join(core.path_base, "trains", folder_name, "config.yaml")
+    base_dir = "finetunes" if model_selection == "Finetuned" else "trains"
+    cfg_path_train = os.path.join(core.path_base, base_dir, folder_name, "config.yaml")
     cfg_path_proj = os.path.join(core.path_base, "projects", folder_name, "configs", "config.yaml")
     
     cfg_path = cfg_path_train if os.path.exists(cfg_path_train) else cfg_path_proj
@@ -103,103 +104,13 @@ def auto_discover_inference_settings(folder_name):
 # ==========================================
 # Application Logic
 # ==========================================
-def load_custom_model_logic(folder_name, use_cuda_ui, use_compile_ui, case_format, tok_type):
-    global tts
-    log_history = ""
-    
-    if not folder_name:
-        yield ">> Error: No folder selected."
-        return
-
-    log_history += f"[{time.strftime('%H:%M:%S')}] Selecting project: {folder_name}...\n"
-    yield log_history
-    core.project_name = folder_name
-    
-    target_train_dir = os.path.join(core.path_base, "trains", folder_name)
-    target_project_dir = os.path.join(core.path_base, "projects", folder_name)
-    if not os.path.exists(target_project_dir):
-        target_project_dir = None
-        
-    if not os.path.exists(target_train_dir):
-            log_history += f"❌ Error: Directory not found: {target_train_dir}\n"
-            yield log_history
-            return
-
-    log_history += f"📂 Train Dir: {target_train_dir}\n"
-    yield log_history
-    
-    try:
-        if tts is not None:
-            del tts
-            torch.cuda.empty_cache()
-            log_history += "🗑️ Old model unloaded. Memory cleared.\n"
-            yield log_history
-
-        # Attempt to load
-        try:
-            # 1. Initialize Wrapper (Fast)
-            log_history += f"[{time.strftime('%H:%M:%S')}] Initializing wrapper...\n"
-            yield log_history
-            
-            tts = IndexTTS2(
-                project_dir=target_project_dir,
-                train_dir=target_train_dir,
-                loaded_project_name=folder_name,
-                use_cuda_kernel=use_cuda_ui,
-                use_torch_compile=use_compile_ui,
-                do_load=False,
-                case_format=case_format, 
-                tok_type=tok_type                
-            )
-            
-            # 2. Iterate Loading Steps (Streaming Logs)
-            for msg in tts.load_resources():
-                log_history += f"[{time.strftime('%H:%M:%S')}] {msg}\n"
-                yield log_history
-
-            mode_str = "ON" if use_cuda_ui else "OFF"
-            log_history += f"[{time.strftime('%H:%M:%S')}] 📛 BigVGAN Kernel: {mode_str}\n"
-            log_history += f"[{time.strftime('%H:%M:%S')}] ✅ Success!\n"
-            yield log_history
-            
-        except RuntimeError as re:
-            if "Ninja is required" in str(re) or "ninja" in str(re).lower():
-                log_history += "\n⚠️ WARNING: 'Ninja' missing. Falling back to standard mode.\n"
-                yield log_history
-                
-                tts = IndexTTS2(
-                    project_dir=target_project_dir,
-                    train_dir=target_train_dir,
-                    loaded_project_name=folder_name,
-                    use_cuda_kernel=False,
-                    do_load=False,
-                    case_format=case_format,
-                    tok_type=tok_type
-                )
-                
-                # Retry loading (Streaming Logs)
-                for msg in tts.load_resources():
-                    log_history += f"[{time.strftime('%H:%M:%S')}] {msg}\n"
-                    yield log_history
-
-                log_history += f"[{time.strftime('%H:%M:%S')}] ✅ Success! (Fallback Mode)\n"
-                yield log_history
-            else:
-                raise re
-
-    except Exception as e:
-        log_history += f"[{time.strftime('%H:%M:%S')}] ❌ Critical Error: {str(e)}\n"
-        yield log_history
-        import traceback
-        traceback.print_exc()
-
 # ----------------------------------
 
 def generate_speech_logic(
         selected_folder, text, seed_val, prompt_audio, emo_method_idx, emo_upload, emo_weight,
         v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
         do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
-        use_cuda_ui, use_compile_ui, language_choice, case_format, tok_type
+        use_cuda_ui, use_compile_ui, language_choice, case_format, tok_type, model_selection
 ):
     global tts
     
@@ -208,25 +119,27 @@ def generate_speech_logic(
     yield None, log_history, ""
 
     current_project = selected_folder
-    target_train_dir = os.path.join(core.path_base, "trains", current_project)
+    base_dir = "finetunes" if model_selection == "Finetuned" else "trains"
+    target_train_dir = os.path.join(core.path_base, base_dir, current_project)
     target_project_dir = os.path.join(core.path_base, "projects", current_project)
     if not os.path.exists(target_project_dir):
         target_project_dir = None
     
     current_kernel_setting = getattr(tts, 'use_cuda_kernel', False) if tts else False
     current_compile_setting = getattr(tts, 'use_torch_compile', False) if tts else False
+    loaded_proj_marker = f"{current_project}-{model_selection}"
     
     need_reload = (tts is None) or \
-                  (tts.loaded_project != current_project) or \
+                  (getattr(tts, 'loaded_project_marker', None) != loaded_proj_marker) or \
                   (current_kernel_setting != use_cuda_ui) or \
                   (current_compile_setting != use_compile_ui) or \
                   (getattr(tts, 'case_format', 'lowercase') != case_format) or \
                   (getattr(tts, 'tok_type', 'itts-tr') != tok_type)
 
     if need_reload:
-        log_history += f"[{time.strftime('%H:%M:%S')}] Auto-Initializing Model (Target: {current_project})...\n"
+        log_history += f"[{time.strftime('%H:%M:%S')}] Auto-Initializing Model (Target: {current_project} [{model_selection}])...\n"
         yield None, log_history, ""
-        print(f">> Initializing IndexTTS2 Model for project: {current_project}...")
+        print(f">> Initializing IndexTTS2 Model for project: {current_project} [{model_selection}]...")
         
         if tts is not None:
             del tts
@@ -240,12 +153,20 @@ def generate_speech_logic(
                     loaded_project_name=current_project,
                     use_cuda_kernel=use_cuda_ui,
                     use_torch_compile=use_compile_ui,
-                    do_load=True,
+                    do_load=False,
                     case_format=case_format,
                     tok_type=tok_type
                 )
+                tts.loaded_project_marker = loaded_proj_marker
+                for msg in tts.load_resources():
+                    log_history += f"[{time.strftime('%H:%M:%S')}] {msg}\n"
+                    yield None, log_history, ""
+
+                mode_str = "ON" if use_cuda_ui else "OFF"
+                log_history += f"[{time.strftime('%H:%M:%S')}] 📛 BigVGAN Kernel: {mode_str}\n"
+
             except RuntimeError as re:
-                if "Ninja" in str(re) or "ninja" in str(re):
+                if "Ninja" in str(re) or "ninja" in str(re).lower():
                     msg = "⚠️ Ninja missing. Falling back to standard mode."
                     print(f">> {msg}")
                     log_history += f"[{time.strftime('%H:%M:%S')}] {msg}\n"
@@ -256,10 +177,14 @@ def generate_speech_logic(
                         train_dir=target_train_dir,
                         loaded_project_name=current_project,
                         use_cuda_kernel=False,
-                        do_load=True,
+                        do_load=False,
                         case_format=case_format,
                         tok_type=tok_type
                     )
+                    tts.loaded_project_marker = loaded_proj_marker
+                    for msg in tts.load_resources():
+                        log_history += f"[{time.strftime('%H:%M:%S')}] {msg}\n"
+                        yield None, log_history, ""
                 else:
                     raise re
 
@@ -373,6 +298,12 @@ def create_demo():
                                 label=_("TTS_LABEL_LANG_INJECT"),
                                 interactive=True
                             )
+                            model_selection_dropdown = gr.Dropdown(
+                                choices=["Trained", "Finetuned"],
+                                value="Trained",
+                                label="Model Selection",
+                                interactive=True
+                            )
                             
                 with gr.Row():
                     seed_input = gr.Number(
@@ -382,12 +313,18 @@ def create_demo():
                     )
                     
                 refresh_folders_btn.click(
-                    fn=lambda: gr.Dropdown(choices=get_train_folders()),
+                    fn=lambda m: gr.Dropdown(choices=get_train_folders(m)),
+                    inputs=[model_selection_dropdown],
                     outputs=[folder_dropdown]
                 )
                 
-                load_btn = gr.Button(_("INFERENCE_BTN_LOAD_MODEL"), variant="secondary")
+                model_selection_dropdown.change(
+                    fn=lambda m: gr.Dropdown(choices=get_train_folders(m)),
+                    inputs=[model_selection_dropdown],
+                    outputs=[folder_dropdown]
+                )
                 
+
                 text_input = gr.TextArea(
                     label=_("INFERENCE_LABEL_INPUT_TEXT"), 
                     value="Mum ışığının aydınlattığı köhne kulübede, yorgun yolcu yılmış bakışlarını yavaşça ocağın üzerindeki gümüş çaydanlığa kaydırdı.", 
@@ -478,13 +415,13 @@ def create_demo():
         
         folder_dropdown.change(
             fn=auto_discover_inference_settings,
-            inputs=[folder_dropdown],
+            inputs=[folder_dropdown, model_selection_dropdown],
             outputs=[case_format, tok_type_dd]
         )        
         
         demo.load(
             fn=auto_discover_inference_settings,
-            inputs=[folder_dropdown],
+            inputs=[folder_dropdown, model_selection_dropdown],
             outputs=[case_format, tok_type_dd]
         )
 
@@ -498,21 +435,13 @@ def create_demo():
             }
         emo_method.change(update_ui, inputs=[emo_method], outputs=[ref_group, vec_group, text_group, weight_row])
 
-        # Load Logic -> Unified Log
-        load_btn.click(
-            load_custom_model_logic, 
-            inputs=[folder_dropdown, use_cuda_cb, use_compile_cb, case_format, tok_type_dd], 
-            outputs=[system_log]
-        )
-
-        # Gen Logic -> Unified Log
         gen_btn.click(
             fn=generate_speech_logic,
             inputs=[
                 folder_dropdown, text_input, seed_input, ref_audio, emo_method, emo_upload, emo_weight,
                 v1, v2, v3, v4, v5, v6, v7, v8, emo_text,
                 do_sample, temp, top_p, max_mel, max_text_seg, interval_silence,
-                use_cuda_cb, use_compile_cb, language_dropdown, case_format, tok_type_dd
+                use_cuda_cb, use_compile_cb, language_dropdown, case_format, tok_type_dd, model_selection_dropdown
             ],
             outputs=[audio_out, system_log, tokenizer_out_tb]
         )
