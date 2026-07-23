@@ -120,6 +120,7 @@ def train_tokenizer_ui(
     char_coverage,
     include_corpus,
     special_tokens_str,
+    lang_markers_chk,
     style_chk,
     emotion_chk,
     tr_spec_chk,
@@ -195,11 +196,19 @@ def train_tokenizer_ui(
       
     # 3. Add Language Tags 
     user_symbols = []    
-    lang_tags = [f"▁[{l}]" for l in core.language_list()]
+    
+    if lang_markers_chk:
+        lang_tags = [f"▁[{l}]" for l in core.language_list()]
+    else:
+        lang_upper = lang.upper() if lang else ""
+        selected_langs = ["ZH", "EN"]
+        if lang_upper and lang_upper not in selected_langs:
+            selected_langs.append(lang_upper)
+        lang_tags = [f"▁[{l}]" for l in selected_langs]
 
     for tag in lang_tags:
         if tag not in user_symbols:
-            user_symbols.append(tag)        
+            user_symbols.append(tag)
         
     # 4. Add style and emotions   
     style_tags = [
@@ -1320,6 +1329,82 @@ def process_design_vocab(
     except Exception as e:
         return "", "", "", f"❌ Execution Failed: {str(e)}"
               
+def unpack_model_to_json(uploaded_model):
+    if not uploaded_model:
+        return "❌ Error: Please upload a .model file."
+        
+    try:
+        model_path = uploaded_model.name if hasattr(uploaded_model, 'name') else uploaded_model
+        sp = spm.SentencePieceProcessor()
+        sp.load(model_path)
+        
+        data = []
+        for i in range(sp.get_piece_size()):
+            data.append({
+                "id": i,
+                "piece": sp.id_to_piece(i),
+                "score": sp.get_score(i),
+                "is_control": sp.is_control(i),
+                "is_unknown": sp.is_unknown(i),
+                "is_unused": sp.is_unused(i),
+                "is_byte": sp.is_byte(i),
+            })
+            
+        json_output = json.dumps(data, ensure_ascii=False, indent=2)
+        
+        out_dir = os.path.join(core.tokenizer_directory(), "unpack")
+        os.makedirs(out_dir, exist_ok=True)
+        
+        base_name = os.path.basename(model_path)
+        name_without_ext = os.path.splitext(base_name)[0]
+        save_path = os.path.join(out_dir, f"{name_without_ext}_unpacked.json")
+        
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(json_output)
+            
+        vocab_path = os.path.join(out_dir, f"{name_without_ext}_unpacked.vocab")
+        with open(vocab_path, "w", encoding="utf-8") as vf:
+            for item in data:
+                piece = item.get("piece", "")
+                score = item.get("score", 0.0)
+                vf.write(f"{piece}\t{score}\n")
+            
+        return f"✅ Successfully unpacked to: {save_path}\n✅ Vocab saved to: {vocab_path}\n\n{json_output}"
+    except Exception as e:
+        return f"❌ Error unpacking model: {str(e)}"
+
+def repack_json_to_model(uploaded_json):
+    if not uploaded_json:
+        return "❌ Error: Please upload a JSON file."
+        
+    try:
+        json_path = uploaded_json.name if hasattr(uploaded_json, 'name') else uploaded_json
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        out_dir = os.path.join(core.tokenizer_directory(), "repack")
+        os.makedirs(out_dir, exist_ok=True)
+        
+        base_name = os.path.basename(json_path)
+        name_without_ext = os.path.splitext(base_name)[0]
+        ds_name = f"{name_without_ext}_repacked_bpe"
+        bpe_path = os.path.join(out_dir, f"{ds_name}.model")
+        vocab_path = os.path.join(out_dir, f"{ds_name}.vocab")
+        
+        with open(vocab_path, "w", encoding="utf-8") as vf:
+            for item in data:
+                piece = item.get("piece", "")
+                score = item.get("score", 0.0)
+                vf.write(f"{piece}\t{score}\n")
+        
+        converter = JsonToModelConverter(ds_name, out_dir)
+        convert_msg = converter.convert(data)
+        
+        return f"✅ Successfully repacked JSON into model: {bpe_path}\n✅ Vocab saved to: {vocab_path}\n{convert_msg}"
+    except Exception as e:
+        return f"❌ Error repacking model: {str(e)}"
+
 def open_tokenizer_folder():
     folder_path = core.tokenizer_directory()
 
@@ -1333,12 +1418,19 @@ def open_tokenizer_folder():
 # UI CREATION
 # ======================================================
 
-def update_token_stats(style, emotion, tr_spec, tr_alone, tr_long, tr_seng, tr_turk, tr_punc, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
+def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, tr_alone, tr_long, tr_seng, tr_turk, tr_punc, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
     from core import core
     count = 3  # <s>, </s>, <unk>
     
     # language list
-    count += len(core.language_list())
+    if lang_markers:
+        count += len(core.language_list())
+    else:
+        lang_upper = lang.upper() if lang else ""
+        selected_langs = {"ZH", "EN"}
+        if lang_upper:
+            selected_langs.add(lang_upper)
+        count += len(selected_langs)
     
     if style: count += 23
     if emotion: count += 37
@@ -1357,7 +1449,8 @@ def update_token_stats(style, emotion, tr_spec, tr_alone, tr_long, tr_seng, tr_t
     if inj_wrd: count += int(wrd_c)
     
     total = count + 1799
-    return count, 1799, total
+    reserved = int(vocab_size) - total if vocab_size else 0
+    return count, 1799, total, reserved
 
 def create_demo():
     
@@ -1472,6 +1565,10 @@ def create_demo():
                 )
                 
             with gr.Group():
+                gr.Markdown("### Language Markers")
+                lang_markers_chk = gr.Checkbox(label="Include language markers", value=False)
+
+            with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_EMOTIONS"))
                 style_chk = gr.Checkbox(label=_("TOKENIZER_CHK_STYLE"), value=False)
                 emotion_chk = gr.Checkbox(label=_("TOKENIZER_CHK_EMOTION"), value=False)
@@ -1538,13 +1635,14 @@ def create_demo():
                     info=_("TOKENIZER_INFO_ADV_BYTE_FALLBACK")
                 )                
                 
-            init_add, init_eng, init_tot = update_token_stats(False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
+            init_add, init_eng, init_tot, init_res = update_token_stats(12000, "tr", False, False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_STATS"))
                 with gr.Row():
                     stat_added = gr.Number(label=_("TOKENIZER_LABEL_ADDED_TOKENS"), value=init_add, interactive=False)
                     stat_english = gr.Number(label=_("TOKENIZER_LABEL_ENG_TOKENS"), value=init_eng, interactive=False)
                     stat_total = gr.Number(label=_("TOKENIZER_LABEL_TOT_TOKENS"), value=init_tot, interactive=False)
+                    stat_reserved = gr.Number(label="Sentencepiece Reserved Tokens", value=init_res, interactive=False)
                       
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
@@ -1576,6 +1674,7 @@ def create_demo():
             char_coverage_slider, 
             include_corpus_chk, 
             special_input,
+            lang_markers_chk,
             style_chk,             
             emotion_chk,           
             tr_spec_chk,
@@ -1624,6 +1723,7 @@ def create_demo():
         )
         
         stat_inputs = [
+            vocab_slider, lang_dd, lang_markers_chk,
             style_chk, emotion_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, 
             tr_seng_chk, tr_turk_chk, tr_punc_chk, special_input,
             tok_inject_syl, tok_syl_count, tok_inject_wrd, tok_wrd_count
@@ -1632,7 +1732,7 @@ def create_demo():
             component.change(
                 fn=update_token_stats,
                 inputs=stat_inputs,
-                outputs=[stat_added, stat_english, stat_total]
+                outputs=[stat_added, stat_english, stat_total, stat_reserved]
             )
                   
         gr.HTML("<div style='height:10px'></div>")
@@ -2005,6 +2105,58 @@ def create_demo():
                     design_final_output, 
                     design_log_output
                 ]
+            )
+            
+        # =====================
+        # Unpack Model
+        # =====================          
+        with gr.Accordion("🎉Unpack Model", open=False, elem_classes="wui-accordion"):
+            gr.Markdown("Upload a trained SentencePiece `.model` file to unpack its entire vocabulary back into a structured JSON representation.")
+            
+            with gr.Row():
+                unpack_model_upload = gr.File(
+                    label="Upload .model file", 
+                    file_types=[".model"]
+                )
+            with gr.Row():
+                unpack_btn = gr.Button("Unpack to JSON", variant="primary")
+            
+            unpack_output = gr.Textbox(
+                label="Unpacked JSON", 
+                interactive=False, 
+                lines=20
+            )
+            
+            unpack_btn.click(
+                fn=unpack_model_to_json,
+                inputs=[unpack_model_upload],
+                outputs=[unpack_output]
+            )
+            
+        # =====================
+        # Repack Model
+        # =====================          
+        with gr.Accordion("📩 Repack Model", open=False, elem_classes="wui-accordion"):
+            gr.Markdown("Upload a structured JSON vocabulary file to repack it into a SentencePiece `.model` file.")
+            
+            with gr.Row():
+                repack_json_upload = gr.File(
+                    label="Upload JSON file", 
+                    file_types=[".json"]
+                )
+            with gr.Row():
+                repack_btn = gr.Button("Repack to .model", variant="primary")
+            
+            repack_output = gr.Textbox(
+                label="Repack Result", 
+                interactive=False, 
+                lines=2
+            )
+            
+            repack_btn.click(
+                fn=repack_json_to_model,
+                inputs=[repack_json_upload],
+                outputs=[repack_output]
             )
                    
         # =============
