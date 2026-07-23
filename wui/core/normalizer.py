@@ -206,7 +206,7 @@ class TurkishWordifier(BaseWordifier):
             for k, v in sorted(self.ALL_ABBREVIATIONS_TR.items(), key=lambda x: len(x[0]), reverse=True)
         ]
         
-        self.turkic_chars = r"a-zA-ZÇçĞğIıİiÖöŞşÜüƏəQqXxÑñÄäŽžŇňÝýŪūÂâÊêÎîÔôÛû"
+        self.turkic_chars = r"a-zA-ZÇçĞğIıİiÖöŞşÜüƏəQqXxÑñÄäŽžŇňÝýĀāĒēĪīŌōŪūÂâÊêÉéÎîÔôÛû"
         self.turkic_pattern = rf"([{self.turkic_chars}]+)"
         self._word_pattern = re.compile(rf"[{self.turkic_chars}]+")
         
@@ -327,8 +327,8 @@ class TurkishNormalizer(BaseNormalizer):
         super().__init__(lang, extract, upper, wordify, abbreviations)
         
         self.whitelist = [
-            'a', 'â', 'b', 'c', 'ç', 'd', 'e', 'ê', 'f', 'g', 'ğ', 'h', 'ı', 'i', 'î', 
-            'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ö', 'p', 'q', 'r', 's', 'ş', 't', 'u', 
+            'a', 'â', 'ā', 'b', 'c', 'ç', 'd', 'e', 'é', 'ê', 'ē', 'f', 'g', 'ğ', 'h', 'ı', 'i', 'î', 'ī',
+            'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ō', 'ö', 'p', 'q', 'r', 's', 'ş', 't', 'u', 
             'û', 'ū', 'ü', 'v', 'w', 'x', 'y', 'z', '.', ',', '?', '!', ':', ';', "'", 
             '(', ')', '[', ']', ' ', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'ə', 'ñ', 'ŋ', 'ň', 'ý', 'ä', 'ë', 'ê', 'î', 'ô', 'û', 'ū', 'ă', 'ĕ', 'ś', 'ÿ', 'ž', 'ʻ', '’'
@@ -347,7 +347,7 @@ class TurkishNormalizer(BaseNormalizer):
             ord('Ñ'): 'ñ', ord('Ŋ'): 'ŋ', ord('Ý'): 'ý',
         }
         
-        self.turkic_pattern = r"([a-zA-ZÇçĞğÎîıİiÖöÔôŞşÜüÛûÂâÊêƏəQqXxÑñŊŋÄäËëŽžŇňÝýŪūĂăĔĕŚśŸÿ]+)"
+        self.turkic_pattern = r"([a-zA-ZÇçĞğÎîıİiÖöÔôŞşÜüÛûÂâÊêÉéƏəQqXxÑñŊŋÄäËëŽžŇňÝýĀāĒēĪīŌōŪūĂăĔĕŚśŸÿ]+)"
         
         self.whitespace_re = re.compile(r'\s+')
         self.ellipsis_find_re = re.compile(r'(?:\.\s*){2,}')
