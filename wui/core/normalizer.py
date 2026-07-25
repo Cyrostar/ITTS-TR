@@ -1,4 +1,6 @@
 import re
+import os
+import json
 import unicodedata
 from typing import List
 import abc
@@ -326,6 +328,15 @@ class TurkishNormalizer(BaseNormalizer):
     def __init__(self, lang: str = "tr", extract: bool = False, upper: bool = False, wordify: bool = False, abbreviations: bool = False):
         super().__init__(lang, extract, upper, wordify, abbreviations)
         
+        # Load spell.json dictionary for accent restoration
+        import os
+        spell_file = os.path.join(os.path.dirname(__file__), "spell.json")
+        if os.path.exists(spell_file):
+            with open(spell_file, 'r', encoding='utf-8') as f:
+                self.spell_dict = json.load(f)
+        else:
+            self.spell_dict = {}
+
         self.whitelist = [
             'a', 'â', 'ā', 'b', 'c', 'ç', 'd', 'e', 'é', 'ê', 'ē', 'f', 'g', 'ğ', 'h', 'ı', 'i', 'î', 'ī',
             'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ō', 'ö', 'p', 'q', 'r', 's', 'ş', 't', 'u', 
@@ -346,7 +357,7 @@ class TurkishNormalizer(BaseNormalizer):
             ord('I'): 'ı', ord('İ'): 'i', ord('Ə'): 'ə',
             ord('Ñ'): 'ñ', ord('Ŋ'): 'ŋ', ord('Ý'): 'ý',
         }
-        
+               
         self.turkic_pattern = r"([a-zA-ZÇçĞğÎîıİiÖöÔôŞşÜüÛûÂâÊêÉéƏəQqXxÑñŊŋÄäËëŽžŇňÝýĀāĒēĪīŌōŪūĂăĔĕŚśŸÿ]+)"
         
         self.whitespace_re = re.compile(r'\s+')
@@ -354,8 +365,83 @@ class TurkishNormalizer(BaseNormalizer):
         self.punct_prefix_re = re.compile(r'([(),!?;:]|\.(?!\.))(?!(?<=[.,:])\d)([^\s])')
         self.punct_suffix_re = re.compile(r'([^\s])(?!(?<=\d)[.,:](?=\d))([!?;:]|[(),]|\.(?!\.))')
 
+        self.suffix = [
+            "a", "acak", "ar", "ca", "ce", "cı", "cık", "cıl",
+            "ci", "cik", "cil", "cu", "cul", "cü", "cül", "ça",
+            "çe", "çık", "çıl", "çik", "çil", "çul", "çül", "da",
+            "dan", "daş", "de", "den", "deş", "dı", "dır", "di",
+            "dir", "du", "dur", "dü", "dür", "e", "ecek", "er",
+            "ı", "ım", "ın", "ıncı", "ıntı", "ır", "ıt", "i",
+            "im", "in", "inci", "inti", "ir", "it", "kar", "kâr",
+            "la", "lan", "lar", "laş", "le", "len", "ler", "leş",
+            "lı", "lık", "lış", "li", "lik", "liş", "lu", "luk",
+            "luş", "lü", "lük", "lüş", "ma", "mak", "me", "mek",
+            "mış", "mız", "miş", "miz", "msı", "msi", "muş", "muz",
+            "müş", "müz", "nin", "nun", "sal", "sel", "sın",
+            "sınız", "sız", "sin", "siniz", "siz", "sun", "sunuz",
+            "suz", "sün", "sünüz", "süz", "ta", "tan", "taş", "te",
+            "ten", "teş", "tı", "tır", "ti", "tir", "tu", "tur",
+            "tü", "tür", "u", "um", "un", "uncu", "ur", "ü",
+            "ün", "ür", "uz", "ya", "ye", "yız", "yiz", "yla",
+            "yle", "yor", "yuz", "yüz"
+        ]
+        # Pre-sort suffixes by length in descending order
+        self.sorted_suffixes = sorted(self.suffix, key=len, reverse=True)
+        self.softening_map = {'g': 'k', 'ğ': 'k', 'b': 'p', 'd': 't', 'c': 'ç'}
+        
+        # Pre-compute all suffix combinations for O(1) lookup
+        self.expanded_spell_dict = {}
+        if self.spell_dict:
+            hard_to_soft = {'k': ['ğ', 'g'], 'p': ['b'], 't': ['d'], 'ç': ['c']}
+            vowels = set("aeıioöuü")
+            
+            for base_word, accented_base in self.spell_dict.items():
+                if not base_word:
+                    continue
+                for suf in self.sorted_suffixes:
+                    # Direct addition
+                    word_with_suf = base_word + suf
+                    if word_with_suf not in self.expanded_spell_dict:
+                        self.expanded_spell_dict[word_with_suf] = accented_base + suf
+                    
+                    # Softened addition
+                    if suf[0] in vowels and base_word[-1] in hard_to_soft:
+                        for soft_char in hard_to_soft[base_word[-1]]:
+                            softened_word = base_word[:-1] + soft_char + suf
+                            if softened_word not in self.expanded_spell_dict:
+                                if accented_base[-1] in ('k', 'p', 't', 'ç'):
+                                    softened_accented = accented_base[:-1] + soft_char + suf
+                                else:
+                                    softened_accented = accented_base + suf
+                                self.expanded_spell_dict[softened_word] = softened_accented
+
+            # Ensure base words always take precedence
+            for base_word, accented_base in self.spell_dict.items():
+                self.expanded_spell_dict[base_word] = accented_base
+
     def extract_graphemes(self, text: str) -> str:
         return " ".join(list(text.replace(" ", "")))
+
+    def accentize_word(self, word: str) -> str:
+        """
+        Restores phonetic accent/macron spelling for a single word using O(1) expanded dictionary lookup.
+        """
+        if not word or not self.expanded_spell_dict:
+            return word
+            
+        word_lower = word.lower()
+        return self.expanded_spell_dict.get(word_lower, word)
+
+    def accentize(self, text: str) -> str:
+        """
+        Applies accent restoration to all words in the input text.
+        """
+        if not text:
+            return ""
+            
+        tokens = text.split()
+        accented_tokens = [self.accentize_word(w) for w in tokens]
+        return " ".join(accented_tokens)
 
     def normalize(self, text: str) -> str:
         if not text: return ""
@@ -375,23 +461,26 @@ class TurkishNormalizer(BaseNormalizer):
         # 3. Turkish-safe lowercase
         text = text.translate(self.lower_map).lower()       
         
-        # 4. Cleanup & Masking
+        # 4. Accent Restoration / Accentize
+        text = self.accentize(text)
+
+        # 5. Cleanup & Masking
         text = re.sub(r'([^\w\s\.])\1+', r'\1', text)
         text = self.whitespace_re.sub(' ', text)
         text = self.ellipsis_find_re.sub(' ^ ', text)
         
-        # 5. Punctuation Splitting
+        # 6. Punctuation Splitting
         text = self.punct_prefix_re.sub(r'\1 \2', text)
         text = self.punct_suffix_re.sub(r'\1 \2', text)
 
-        # 6. Unmasking & Quote Formatting
+        # 7. Unmasking & Quote Formatting
         text = text.replace('^', '...').replace('"', "''")
         text = self.whitespace_re.sub(' ', text)
 
-        # 7. Whitelist Filter
+        # 8. Whitelist Filter
         text = "".join(char for char in text if char in self.allowed).strip()
         
-        # 8. Final Extraction & Casing
+        # 9. Final Extraction & Casing
         if self.extract_mode:
             text = self.extract_graphemes(text)
         if self.upper_mode:
