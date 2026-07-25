@@ -50,8 +50,7 @@ echo/
 set /p roPython=Enter Python version (Recommended 3.11.9):
 echo/
 
-set roPythonDigits=%roPython:.=%
-set roPythonDigits=%roPythonDigits:~0,-1%
+for /f "tokens=1,2 delims=." %%a in ("%roPython%") do set roPythonDigits=%%a%%b
 
 if not exist %ARTHA_BIN_DIR% (
 md %ARTHA_BIN_DIR%
@@ -174,11 +173,11 @@ echo/
 echo/
 echo ...INSTALLING REQUIREMENTS...
 echo/
-%PYTHON% -m pip install -r requirments.txt --target %ARTHA_ENV_DIR%Lib\site-packages
+%PYTHON% -m pip install -r requirements.txt --target %ARTHA_ENV_DIR%Lib\site-packages
 
 echo/
 echo DETECTING TORCH VERSION...
-set TORCH_VER=2.8.0
+set TORCH_VER=2.6.0
 for /f "delims=" %%I in ('%PYTHON% -c "from importlib.metadata import version; print(version('torch'))" 2^>nul') do set TORCH_VER=%%I
 echo/
 echo DETECTED / RECOMMENDED TORCH VERSION: %TORCH_VER%
@@ -252,49 +251,49 @@ md %ARTHA_FFMPEG_DIR%
 
 echo ...DOWNLOADING FFMPEG...
 echo/
-curl -L -o %ARTHA_FFMPEG_DIR%ffmpeg.zip %ARTHA_FFMPEG_URL%
+curl -L -o %ARTHA_FFMPEG_DIR%ffmpeg.7z %ARTHA_FFMPEG_URL%
 
 echo/
 echo ...EXTRACTING FFMPEG...
 echo/
 	
-tar -xf %ARTHA_FFMPEG_DIR%ffmpeg.zip --strip-components=1 -C %ARTHA_FFMPEG_DIR%
+tar -xf %ARTHA_FFMPEG_DIR%ffmpeg.7z --strip-components=1 -C %ARTHA_FFMPEG_DIR%
 	
-echo ...DELETING ZIP FILE...
+echo ...DELETING 7Z FILE...
 echo/
 	
-del %ARTHA_FFMPEG_DIR%ffmpeg.zip
+del %ARTHA_FFMPEG_DIR%ffmpeg.7z
 
 :MPEGSKIP
 
 echo/
-set isytdip=
-set /p isytdip=INSTALL YT-DIP?[y/n]: 
+set isytdlp=
+set /p isytdlp=INSTALL YT-DLP?[y/n]: 
 
-if /i not "%isytdip%"=="y" goto YTDIPSKIP
+if /i not "%isytdlp%"=="y" goto YTDLPSKIP
 
-if not exist %ARTHA_YT_DIP_DIR% (
+if not exist %ARTHA_YT_DLP_DIR% (
 echo/
-echo ...CREATING YT-DIP DIRECTORY...
+echo ...CREATING YT-DLP DIRECTORY...
 echo/
-md %ARTHA_YT_DIP_DIR%
+md %ARTHA_YT_DLP_DIR%
 ) else (
 echo/
-echo ...DELETING EXISTING YT-DIP DIRECTORY...
+echo ...DELETING EXISTING YT-DLP DIRECTORY...
 echo/
-rmdir /s /q %ARTHA_YT_DIP_DIR%
-md %ARTHA_YT_DIP_DIR%
+rmdir /s /q %ARTHA_YT_DLP_DIR%
+md %ARTHA_YT_DLP_DIR%
 )
 
-curl -L -o %ARTHA_YT_DIP_DIR%yt-dlp_x86.exe %ARTHA_YT_DIP_URL%
+curl -L -o %ARTHA_YT_DLP_DIR%yt-dlp_x86.exe %ARTHA_YT_DLP_URL%
 
-:YTDIPSKIP
+:YTDLPSKIP
 
 echo/
 echo ...CREATING NECESSARY FILES...
 echo/
-xcopy uix %ARTHA_BASE_DIR% /s
-xcopy wui %ARTHA_HOME_DIR% /s
+if exist "uix\" xcopy "uix" "%ARTHA_BASE_DIR%" /s
+if exist "wui\" xcopy "wui" "%ARTHA_HOME_DIR%" /s
 
 echo/
 set isitts=
@@ -318,13 +317,21 @@ if %errorlevel% neq 0 (
 
 set REPO_URL=https://github.com/index-tts/index-tts.git
 
-cd %ARTHA_HOME_DIR%
+if not exist %ARTHA_HOME_DIR%temp_indextts md %ARTHA_HOME_DIR%temp_indextts
+cd %ARTHA_HOME_DIR%temp_indextts
 
 git init
 git remote add -f origin %REPO_URL%
 git config core.sparseCheckout true
 echo indextts/ >> .git/info/sparse-checkout
 git pull origin main
+
+echo/
+echo ...MOVING INDEXTTS FILES...
+echo/
+xcopy indextts ..\indextts\ /e /i /y
+cd ..
+rmdir /s /q temp_indextts
 
 :ITTSSKIP
 
