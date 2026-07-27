@@ -26,14 +26,32 @@ goto choice
 echo.
 echo Installing dependencies...
 %PYTHON% -m pip install pip setuptools wheel cython
-%PYTHON% -m pip install -r requirments.txt --target %ARTHA_ENV_DIR%Lib\site-packages
-goto check
+%PYTHON% -m pip install -r requirements.txt --target %ARTHA_ENV_DIR%Lib\site-packages
+goto fix
 
 :update
 echo.
 echo Updating dependencies...
 %PYTHON% -m pip install --upgrade pip setuptools wheel cython
-%PYTHON% -m pip install -U -r requirments.txt --target %ARTHA_ENV_DIR%Lib\site-packages
+%PYTHON% -m pip install -U -r requirements.txt --target %ARTHA_ENV_DIR%Lib\site-packages
+goto fix
+
+:fix
+echo.
+echo Re-applying fixes...
+set ARTHA_FIX_SPEECHBRAIN=%ARTHA_ENV_DIR%Lib\site-packages\speechbrain\utils\
+if exist %ARTHA_FIX_SPEECHBRAIN% (
+    copy /y %ARTHA_FIX_DIR%importutils.py %ARTHA_FIX_SPEECHBRAIN%
+)
+set ARTHA_FIX_INDEXTTS=%ARTHA_HOME_DIR%indextts\gpt\
+if exist %ARTHA_FIX_INDEXTTS% (
+    copy /y %ARTHA_FIX_DIR%model_v2.py %ARTHA_FIX_INDEXTTS%
+)
+set ARTHA_FIX_RVC=%ARTHA_HOME_DIR%rvc\
+if exist %ARTHA_FIX_RVC% (
+	copy /y %ARTHA_FIX_DIR%core.py %ARTHA_FIX_RVC%
+	copy /y %ARTHA_FIX_DIR%train.py %ARTHA_FIX_RVC%train\
+)
 goto check
 
 :check
