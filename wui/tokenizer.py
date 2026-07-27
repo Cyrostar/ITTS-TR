@@ -130,6 +130,7 @@ def train_tokenizer_ui(
     tr_long_chk, 
     tr_accent_chk,
     tr_punc_chk,
+    tr_suffix_chk,
     use_only_corpus,
     norm_rule,
     case_rule,
@@ -274,7 +275,28 @@ def train_tokenizer_ui(
                 
         yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
 
-    # 5. Parse Special Tokens      
+    # 5. Parse Special Tokens
+    tr_suffix = [
+        "acak", "ar", "ca", "ce", "cı", "cık", "cıl",
+        "ci", "cik", "cil", "cu", "cul", "cü", "cül", "ça",
+        "çe", "çık", "çıl", "çik", "çil", "çul", "çül", "da",
+        "dan", "daş", "de", "den", "deş", "dı", "dır", "di",
+        "dir", "du", "dur", "dü", "dür", "ecek", "er",
+        "ım", "ın", "ıncı", "ıntı", "ır", "ıt",
+        "im", "in", "inci", "inti", "ir", "it", "kar", "kâr",
+        "la", "lan", "lar", "laş", "le", "len", "ler", "leş",
+        "lı", "lık", "lış", "li", "lik", "liş", "lu", "luk",
+        "luş", "lü", "lük", "lüş", "ma", "mak", "me", "mek",
+        "mış", "mız", "miş", "miz", "msı", "msi", "muş", "muz",
+        "müş", "müz", "nin", "nun", "sal", "sel", "sın",
+        "sınız", "sız", "sin", "siniz", "siz", "sun", "sunuz",
+        "suz", "sün", "sünüz", "süz", "ta", "tan", "taş", "te",
+        "ten", "teş", "tı", "tır", "ti", "tir", "tu", "tur",
+        "tü", "tür", "um", "un", "uncu", "ur",
+        "ün", "ür", "uz", "ya", "ye", "yız", "yiz", "yla",
+        "yle", "yor", "yuz", "yüz"
+    ]
+    
     tr_spec = ["ı", "▁ı", "ç", "▁ç", "ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
     
     tr_alone = ["▁a", "▁e", "▁i", "▁o", "▁u"]
@@ -288,7 +310,7 @@ def train_tokenizer_ui(
     tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
     
     tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁...", "\"", "▁\""]
-                          
+                             
     if tr_spec_chk:
         for tag in tr_spec:
             if tag not in user_symbols:
@@ -330,12 +352,18 @@ def train_tokenizer_ui(
             if tag not in user_symbols:
                 user_symbols.append(tag)
         yield log(f"🔣 Added {len(tr_punc)} Punctuation Marks to Tokenizer")
-    
+           
     if special_tokens_str:
         custom_tokens = [x.strip() for x in special_tokens_str.split("|") if x.strip()]
         if custom_tokens:
             user_symbols.extend(custom_tokens)
             yield log(f"✨ Found {len(custom_tokens)} Custom User Tokens")
+            
+    if tr_suffix_chk:
+        for tag in tr_suffix:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_suffix)} Turkish Suffixes to Tokenizer")
         
     # 6. Inject High-Frequency Syllables
     if inject_syllables and int(syllable_count) > 0:
@@ -1427,7 +1455,7 @@ def open_tokenizer_folder():
 # UI CREATION
 # ======================================================
 
-def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, tr_alone, tr_long, tr_accent, tr_seng, tr_turk, tr_punc, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
+def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, tr_alone, tr_long, tr_accent, tr_seng, tr_turk, tr_punc, tr_suffix, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
     from core import core
     count = 3  # <s>, </s>, <unk>
     
@@ -1450,6 +1478,7 @@ def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, 
     if tr_seng: count += 6
     if tr_turk: count += 30
     if tr_punc: count += 18
+    if tr_suffix: count += 132
     
     if custom_str:
         custom_tokens = [x.strip() for x in custom_str.split("|") if x.strip()]
@@ -1602,6 +1631,10 @@ def create_demo():
                 )
                 
             with gr.Group():
+                gr.Markdown("### Suffixes")
+                tr_suffix_chk = gr.Checkbox(label="Include Turkish Suffixes", value=False)
+                
+            with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_SYL"))
                 tok_inject_syl = gr.Checkbox(label=_("TOKENIZER_CHK_INJECT_SYL"), value=False)
                 tok_syl_count = gr.Number(label=_("TOKENIZER_LABEL_SYL_COUNT"), value=1000, precision=0)
@@ -1646,7 +1679,7 @@ def create_demo():
                     info=_("TOKENIZER_INFO_ADV_BYTE_FALLBACK")
                 )                
                 
-            init_add, init_eng, init_tot, init_res = update_token_stats(12000, "tr", False, False, False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
+            init_add, init_eng, init_tot, init_res = update_token_stats(12000, "tr", False, False, False, False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_STATS"))
                 with gr.Row():
@@ -1695,6 +1728,7 @@ def create_demo():
             tr_long_chk,
             tr_accent_chk,
             tr_punc_chk,
+            tr_suffix_chk,
             use_only_corpus_chk,
             norm_rule_dd,
             case_rule_dd,
@@ -1737,7 +1771,7 @@ def create_demo():
         stat_inputs = [
             vocab_slider, lang_dd, lang_markers_chk,
             style_chk, emotion_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, tr_accent_chk, 
-            tr_seng_chk, tr_turk_chk, tr_punc_chk, special_input,
+            tr_seng_chk, tr_turk_chk, tr_punc_chk, tr_suffix_chk, special_input,
             tok_inject_syl, tok_syl_count, tok_inject_wrd, tok_wrd_count
         ]
         for component in stat_inputs:

@@ -73,25 +73,27 @@ def refresh_project_folder(current_selection):
     projects = core.list_projects()
 
     # Logic:
-    # 1. If current selection is valid, keep it.
-    # 2. If current selection is invalid/None but we have projects, auto-select the first one.
-    # 3. Otherwise, set to None.
+    # 1. Prioritize the backend's active project to avoid async timer race conditions.
+    # 2. Fallback to current selection if backend state is missing.
+    # 3. If both are invalid/None but we have projects, auto-select the first one.
     
-    if current_selection in projects:
+    if core.project_name in projects:
+        final_value = core.project_name
+    elif current_selection in projects:
         final_value = current_selection
-        core.project_path = os.path.join(core.prj_path, current_selection)
     elif len(projects) > 0:
         final_value = projects[0]
-        core.project_name = final_value
-        core.project_path = os.path.join(core.prj_path, final_value)
         core.save_wui(final_value, core.wui_lang)
     else:
         final_value = None
-        core.project_name = None
-        core.project_path = core.prj_path
 
     # Sync Global State
-    core.project_name = final_value
+    if final_value:
+        core.project_name = final_value
+        core.project_path = os.path.join(core.prj_path, final_value)
+    else:
+        core.project_name = None
+        core.project_path = core.prj_path
 
     # Return new Dropdown AND update the Header so it matches the auto-selection
     return (
