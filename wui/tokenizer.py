@@ -1604,8 +1604,8 @@ def create_demo():
                 )
                 
             with gr.Group():
-                gr.Markdown("### Language Markers")
-                lang_markers_chk = gr.Checkbox(label="Include language markers", value=False)
+                gr.Markdown(_("TOKENIZER_HEADER_LANG_MARK"))
+                lang_markers_chk = gr.Checkbox(label=_("TOKENIZER_CHK_LANG_MARK"), value=False)
 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_EMOTIONS"))
@@ -1631,8 +1631,8 @@ def create_demo():
                 )
                 
             with gr.Group():
-                gr.Markdown("### Suffixes")
-                tr_suffix_chk = gr.Checkbox(label="Include Turkish Suffixes", value=False)
+                gr.Markdown(_("TOKENIZER_HEADER_SUFFIX"))
+                tr_suffix_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SUFFIX"), value=False)
                 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_SYL"))
@@ -1653,10 +1653,10 @@ def create_demo():
                     info=_("TOKENIZER_INFO_ADV_SENT_SIZE")
                 )
                 tok_max_sentence_length = gr.Number(
-                    label="Max Sentence Length (Bytes)", 
+                    label=_("TOKENIZER_LABEL_MAX_SENT_LEN"), 
                     value=10000000, 
                     precision=0, 
-                    info="Maximum length of a single string before it gets skipped. Keep high for large Corpus DB chunks."
+                    info=_("TOKENIZER_INFO_MAX_SENT_LEN")
                 )
                 tok_train_ext = gr.Checkbox(
                     label=_("TOKENIZER_CHK_ADV_TRAIN_EXT"), 
@@ -1686,7 +1686,7 @@ def create_demo():
                     stat_added = gr.Number(label=_("TOKENIZER_LABEL_ADDED_TOKENS"), value=init_add, interactive=False)
                     stat_english = gr.Number(label=_("TOKENIZER_LABEL_ENG_TOKENS"), value=init_eng, interactive=False)
                     stat_total = gr.Number(label=_("TOKENIZER_LABEL_TOT_TOKENS"), value=init_tot, interactive=False)
-                    stat_reserved = gr.Number(label="Sentencepiece Reserved Tokens", value=init_res, interactive=False)
+                    stat_reserved = gr.Number(label=_("TOKENIZER_LABEL_RES_TOKENS"), value=init_res, interactive=False)
                       
             train_btn = gr.Button(_("TOKENIZER_BTN_TRAIN"), variant="primary")
 
@@ -2156,19 +2156,19 @@ def create_demo():
         # =====================
         # Unpack Model
         # =====================          
-        with gr.Accordion("🎉Unpack Model", open=False, elem_classes="wui-accordion"):
-            gr.Markdown("Upload a trained SentencePiece `.model` file to unpack its entire vocabulary back into a structured JSON representation.")
+        with gr.Accordion(_("TOKENIZER_ACC_UNPACK"), open=False, elem_classes="wui-accordion"):
+            gr.Markdown(_("TOKENIZER_DESC_UNPACK"))
             
             with gr.Row():
                 unpack_model_upload = gr.File(
-                    label="Upload .model file", 
+                    label=_("TOKENIZER_LABEL_UNPACK_FILE"), 
                     file_types=[".model"]
                 )
             with gr.Row():
-                unpack_btn = gr.Button("Unpack to JSON", variant="primary")
+                unpack_btn = gr.Button(_("TOKENIZER_BTN_UNPACK"), variant="primary")
             
             unpack_output = gr.Textbox(
-                label="Unpacked JSON", 
+                label=_("TOKENIZER_LABEL_UNPACK_OUT"), 
                 interactive=False, 
                 lines=20
             )
@@ -2182,19 +2182,19 @@ def create_demo():
         # =====================
         # Repack Model
         # =====================          
-        with gr.Accordion("📩 Repack Model", open=False, elem_classes="wui-accordion"):
-            gr.Markdown("Upload a structured JSON vocabulary file to repack it into a SentencePiece `.model` file.")
+        with gr.Accordion(_("TOKENIZER_ACC_REPACK"), open=False, elem_classes="wui-accordion"):
+            gr.Markdown(_("TOKENIZER_DESC_REPACK"))
             
             with gr.Row():
                 repack_json_upload = gr.File(
-                    label="Upload JSON file", 
+                    label=_("TOKENIZER_LABEL_REPACK_FILE"), 
                     file_types=[".json"]
                 )
             with gr.Row():
-                repack_btn = gr.Button("Repack to .model", variant="primary")
+                repack_btn = gr.Button(_("TOKENIZER_BTN_REPACK"), variant="primary")
             
             repack_output = gr.Textbox(
-                label="Repack Result", 
+                label=_("TOKENIZER_LABEL_REPACK_OUT"),
                 interactive=False, 
                 lines=2
             )
