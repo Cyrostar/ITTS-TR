@@ -440,6 +440,104 @@ def merge_datasets_ui(merged_name, target_lang, resample_sr, selected_datasets):
     yield f"🎉 Successfully merged {total_datasets} datasets into {merged_name}! Total clips: {global_index}"
 
 # ======================================================
+# METHOD 4: METADATA VALIDATION
+# ======================================================
+
+def format_transcript_html(text):
+    if not text:
+        return ""
+    html = text
+    green_chars = ["ā", "ē", "ī", "ō", "ū", "Ā", "Ē", "Ī", "Ō", "Ū"]
+    blue_chars = ["â", "é", "î", "ô", "û", "Â", "É", "Î", "Ô", "Û"]
+    
+    for c in green_chars:
+        html = html.replace(c, f'<span style="color: #66ff66; font-weight: bold;">{c}</span>')
+    for c in blue_chars:
+        html = html.replace(c, f'<span style="color: #66ccff; font-weight: bold;">{c}</span>')
+        
+    return f'<div style="font-size: 1.5em; line-height: 1.6; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 5px; margin-bottom: 10px;">{html}</div>'
+
+def load_validation_dataset(dataset_name):
+    if not dataset_name:
+        return [], 0, "❌ No dataset selected.", "", None, ""
+        
+    ds_full_path = os.path.join(core.path_base, "datasets", dataset_name.replace("/", os.sep))
+    metadata_path = os.path.join(ds_full_path, "metadata.csv")
+    
+    if not os.path.exists(metadata_path):
+        return [], 0, f"❌ metadata.csv not found in {dataset_name}", "", None, ""
+        
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f.readlines() if line.strip()]
+        
+    if not lines:
+        return [], 0, "❌ metadata.csv is empty.", "", None, ""
+        
+    total_clips = len(lines)
+    status_msg = f"✅ Loaded {total_clips} clips from {dataset_name}"
+    
+    # Load the first clip (index 0)
+    audio_path, transcript, info_msg = get_clip_by_index(lines, 0, ds_full_path)
+    
+    return lines, 0, status_msg, info_msg, audio_path, transcript
+
+def get_clip_by_index(lines, index, ds_full_path):
+    if not lines or index < 0 or index >= len(lines):
+        return None, "", "❌ Invalid index."
+        
+    parts = lines[index].split("|")
+    if len(parts) >= 5:
+        filename = parts[2]
+        transcript = parts[4]
+        audio_path = os.path.join(ds_full_path, "wavs", filename)
+        if not os.path.exists(audio_path):
+            return None, transcript, f"⚠️ Audio missing: {filename}"
+        return audio_path, transcript, f"Clip {index + 1} of {len(lines)}"
+    return None, "", "❌ Corrupt metadata line."
+
+def change_clip_index(lines, current_index, action, ds_name, target_goto=None):
+    if not lines:
+        return current_index, "❌ No dataset loaded.", None, ""
+        
+    ds_full_path = os.path.join(core.path_base, "datasets", ds_name.replace("/", os.sep))
+    
+    new_index = current_index
+    if action == "prev":
+        new_index = max(0, current_index - 1)
+    elif action == "next":
+        new_index = min(len(lines) - 1, current_index + 1)
+    elif action == "goto" and target_goto is not None:
+        try:
+            new_index = int(target_goto) - 1
+            new_index = max(0, min(len(lines) - 1, new_index))
+        except:
+            pass
+            
+    audio_path, transcript, info_msg = get_clip_by_index(lines, new_index, ds_full_path)
+    return new_index, info_msg, audio_path, transcript
+
+def save_transcript_edit(lines, current_index, new_transcript, ds_name):
+    if not lines or current_index < 0 or current_index >= len(lines):
+        return lines, "❌ Cannot save: invalid state."
+        
+    parts = lines[current_index].split("|")
+    if len(parts) >= 5:
+        parts[4] = new_transcript.strip()
+        lines[current_index] = "|".join(parts)
+        
+        ds_full_path = os.path.join(core.path_base, "datasets", ds_name.replace("/", os.sep))
+        metadata_path = os.path.join(ds_full_path, "metadata.csv")
+        
+        try:
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            return lines, f"💾 Saved clip {current_index + 1} successfully."
+        except Exception as e:
+            return lines, f"❌ Save error: {e}"
+            
+    return lines, "❌ Corrupt line, cannot save."
+
+# ======================================================
 # UI CREATION
 # ======================================================
 
@@ -566,22 +664,22 @@ def create_demo():
                 cancels=[wx_event]
             )
             
-        with gr.Tab("Method 3: Merge Datasets"):
+        with gr.Tab(_("DATASET_TAB_MERGE")):
             with gr.Row():
-                merge_out_name = gr.Textbox(label="Merged Dataset Name", placeholder="my_merged_dataset", scale=2)
+                merge_out_name = gr.Textbox(label=_("DATASET_LABEL_MERGE_NAME"), placeholder="my_merged_dataset", scale=2)
                 merge_lang = gr.Dropdown(label=_("COMMON_LABEL_LANG"), choices=lang_options, value="tr", scale=1)
                 merge_sr = gr.Dropdown(label=_("DATASET_LABEL_RESAMPLE"), choices=sr_options, value="None", scale=1)
-                refresh_btn = gr.Button("🔄 Refresh Dataset List", scale=1)
+                refresh_btn = gr.Button(_("DATASET_BTN_REFRESH_MERGE"), scale=1)
                 
             with gr.Row():
                 dataset_checkboxes = gr.CheckboxGroup(
-                    label="Select Datasets to Merge",
+                    label=_("DATASET_LABEL_MERGE_SEL"),
                     choices=get_all_datasets(),
                     interactive=True
                 )
                 
             with gr.Row():
-                merge_btn = gr.Button("Merge Selected Datasets", variant="primary", elem_classes="wui-button-green")
+                merge_btn = gr.Button(_("DATASET_BTN_MERGE"), variant="primary", elem_classes="wui-button-green")
                 
             with gr.Row():
                 merge_status = gr.Textbox(label=_("DATASET_LABEL_STATUS"), lines=1, interactive=False)
@@ -596,6 +694,82 @@ def create_demo():
                 fn=merge_datasets_ui,
                 inputs=[merge_out_name, merge_lang, merge_sr, dataset_checkboxes],
                 outputs=[merge_status]
+            )
+            
+        with gr.Tab(_("DATASET_TAB_VAL")):
+            gr.Markdown(_("DATASET_DESC_VAL"), elem_classes="wui-markdown")
+            
+            with gr.Row():
+                val_dataset_dd = gr.Dropdown(label=_("DATASET_LABEL_SEL_DS"), choices=get_all_datasets(), interactive=True, scale=3)
+                val_refresh_btn = gr.Button(_("DATASET_BTN_REFRESH_DS"), scale=1)
+                val_load_btn = gr.Button(_("DATASET_BTN_LOAD_DS"), variant="primary", scale=1)
+                
+            val_status_msg = gr.Textbox(label=_("DATASET_LABEL_STATUS"), interactive=False, lines=1)
+            
+            with gr.Row(variant="panel"):
+                with gr.Column(scale=1):
+                    val_clip_info = gr.Textbox(label=_("DATASET_LABEL_CURR_CLIP"), interactive=False, value="Clip 0 of 0")
+                    
+                    with gr.Row():
+                        val_prev_btn = gr.Button(_("DATASET_BTN_PREV"))
+                        val_next_btn = gr.Button(_("DATASET_BTN_NEXT"))
+                        
+                    with gr.Row():
+                        val_goto_num = gr.Number(label=_("DATASET_LABEL_GOTO"), value=1, precision=0)
+                    with gr.Row():
+                        val_goto_btn = gr.Button(_("DATASET_BTN_GO"), variant="secondary")
+                        
+                with gr.Column(scale=2):
+                    val_audio = gr.Audio(label=_("DATASET_LABEL_AUDIO_PREV"), type="filepath", interactive=False)
+                    val_transcript_html = gr.HTML()
+                    val_transcript = gr.Textbox(label=_("DATASET_LABEL_TRANSCRIPT"), lines=3)
+                    val_save_btn = gr.Button(_("DATASET_BTN_SAVE_TRANSCRIPT"), variant="primary", elem_classes="wui-button-green")
+                    
+            # States
+            val_metadata_state = gr.State([])
+            val_index_state = gr.State(0)
+            
+            # Events
+            val_refresh_btn.click(
+                fn=lambda: gr.Dropdown(choices=get_all_datasets()),
+                inputs=[],
+                outputs=[val_dataset_dd]
+            )
+            
+            val_load_btn.click(
+                fn=load_validation_dataset,
+                inputs=[val_dataset_dd],
+                outputs=[val_metadata_state, val_index_state, val_status_msg, val_clip_info, val_audio, val_transcript]
+            )
+            
+            val_prev_btn.click(
+                fn=lambda lines, idx, ds: change_clip_index(lines, idx, "prev", ds),
+                inputs=[val_metadata_state, val_index_state, val_dataset_dd],
+                outputs=[val_index_state, val_clip_info, val_audio, val_transcript]
+            )
+            
+            val_next_btn.click(
+                fn=lambda lines, idx, ds: change_clip_index(lines, idx, "next", ds),
+                inputs=[val_metadata_state, val_index_state, val_dataset_dd],
+                outputs=[val_index_state, val_clip_info, val_audio, val_transcript]
+            )
+            
+            val_goto_btn.click(
+                fn=lambda lines, idx, ds, goto: change_clip_index(lines, idx, "goto", ds, goto),
+                inputs=[val_metadata_state, val_index_state, val_dataset_dd, val_goto_num],
+                outputs=[val_index_state, val_clip_info, val_audio, val_transcript]
+            )
+            
+            val_save_btn.click(
+                fn=save_transcript_edit,
+                inputs=[val_metadata_state, val_index_state, val_transcript, val_dataset_dd],
+                outputs=[val_metadata_state, val_status_msg]
+            )
+            
+            val_transcript.change(
+                fn=format_transcript_html,
+                inputs=[val_transcript],
+                outputs=[val_transcript_html]
             )
             
         # =============
