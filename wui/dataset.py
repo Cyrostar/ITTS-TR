@@ -266,7 +266,7 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
         
         full_audio = AudioSegment.from_file(audio_file)
         orig_sr = full_audio.frame_rate
-        pad_ms = 50 
+        pad_ms = 150 
         saved_count = 0
         segments = list(diarization.itertracks(yield_label=True))
         total_segments = len(segments)
@@ -303,9 +303,12 @@ def process_long_audio_ui(audio_file, dataset_name, batch_size, resample_sr, lan
                 for w_seg in whisper_segments:
                     seg_text = w_seg['text'].strip()
                     if (w_seg['end'] - current_start) > max_dur_limit and current_text_parts:
-                        sub_audio = clip[int(current_start*1000) : int(w_seg['start']*1000)]
+                        # Subtract 150ms from Whisper's start timestamp to avoid cutting initial speech
+                        whisper_pad = 0.15
+                        cut_point = max(0.0, w_seg['start'] - whisper_pad)
+                        sub_audio = clip[int(current_start*1000) : int(cut_point*1000)]
                         clips_to_save.append((sub_audio, " ".join(current_text_parts)))
-                        current_start = w_seg['start']
+                        current_start = cut_point
                         current_text_parts = [seg_text]
                     else:
                         current_text_parts.append(seg_text)
@@ -718,6 +721,19 @@ def create_demo():
                         val_goto_num = gr.Number(label=_("DATASET_LABEL_GOTO"), value=1, precision=0)
                     with gr.Row():
                         val_goto_btn = gr.Button(_("DATASET_BTN_GO"), variant="secondary")
+                        
+                    gr.HTML(f"""
+                    <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.1); border-radius: 5px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center;">
+                        <div style="display: flex; align-items: center;">
+                            <div style="width: 20px; height: 20px; background-color: #66ff66; margin-right: 10px; border-radius: 4px;"></div>
+                            <span style="font-size: 1.1em; font-weight: 500;">{_("DATASET_LABEL_LEGEND_VOWELS")}</span>
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            <div style="width: 20px; height: 20px; background-color: #66ccff; margin-right: 10px; border-radius: 4px;"></div>
+                            <span style="font-size: 1.1em; font-weight: 500;">{_("DATASET_LABEL_LEGEND_ACCENTS")}</span>
+                        </div>
+                    </div>
+                    """)
                         
                 with gr.Column(scale=2):
                     val_audio = gr.Audio(label=_("DATASET_LABEL_AUDIO_PREV"), type="filepath", interactive=False)
