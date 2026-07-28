@@ -279,6 +279,8 @@
     "DATASET_LABEL_AUDIO_PREV": "Vista Previa de Audio",
     "DATASET_LABEL_TRANSCRIPT": "Transcripción (Editar aquí)",
     "DATASET_BTN_SAVE_TRANSCRIPT": "💾 Guardar Transcripción en metadata.csv",
+    "DATASET_LABEL_LEGEND_VOWELS": "Vocales (ā, ē, ī, ō, ū)",
+    "DATASET_LABEL_LEGEND_ACCENTS": "Acentos (â, é, î, ô, û, ñ)",
     "section_tokenizer": "--- Pestaña de Tokenizador (tokenizer.py) ---",
     "TOKENIZER_HEADER": "# 🔢 Fase 5: Entrenar Tokenizador",
     "TOKENIZER_DESC": "Seleccione un dataset para utilizar como texto de origen para entrenar el tokenizador.",

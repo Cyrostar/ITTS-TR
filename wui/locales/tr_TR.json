@@ -279,6 +279,8 @@
     "DATASET_LABEL_AUDIO_PREV": "Ses Önizlemesi",
     "DATASET_LABEL_TRANSCRIPT": "Transkript (Burada düzenleyin)",
     "DATASET_BTN_SAVE_TRANSCRIPT": "💾 Transkripti metadata.csv'ye Kaydet",
+    "DATASET_LABEL_LEGEND_VOWELS": "Uzun Ünlüler (ā, ē, ī, ō, ū)",
+    "DATASET_LABEL_LEGEND_ACCENTS": "Aksanlar (â, é, î, ô, û, ñ)",
     "section_tokenizer": "--- Simgeleştirici Sekmesi (tokenizer.py) ---",
     "TOKENIZER_HEADER": "# 🔢 Aşama 5: Simgeleştirici Eğitimi",
     "TOKENIZER_DESC": "Simgeleştirici eğitimi için kaynak metin olarak kullanılacak veri setini seçin.",

@@ -451,7 +451,7 @@ def format_transcript_html(text):
         return ""
     html = text
     green_chars = ["ā", "ē", "ī", "ō", "ū", "Ā", "Ē", "Ī", "Ō", "Ū"]
-    blue_chars = ["â", "é", "î", "ô", "û", "Â", "É", "Î", "Ô", "Û"]
+    blue_chars = ["â", "é", "î", "ô", "û", "Â", "É", "Î", "Ô", "Û", "ñ", "Ñ"]
     
     for c in green_chars:
         html = html.replace(c, f'<span style="color: #66ff66; font-weight: bold;">{c}</span>')

@@ -303,7 +303,7 @@ def train_tokenizer_ui(
     
     tr_long = ["ā", "▁ā", "ē", "▁ē", "ī", "▁ī", "ō", "▁ō", "ū", "▁ū"]
     
-    tr_accent = ["â", "▁â", "é", "▁é", "î", "▁î", "ô", "▁ô", "û", "▁û"]
+    tr_accent = ["â", "▁â", "é", "▁é", "î", "▁î", "ô", "▁ô", "û", "▁û", "ñ", "▁ñ"]
     
     tr_seng = ["q", "w", "x"]
     
@@ -1471,11 +1471,11 @@ def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, 
     
     if style: count += 23
     if emotion: count += 37
-    if tr_spec: count += 12
-    if tr_alone: count += 6
+    if tr_spec: count += 11
+    if tr_alone: count += 5
     if tr_long: count += 10
-    if tr_accent: count += 8
-    if tr_seng: count += 6
+    if tr_accent: count += 12
+    if tr_seng: count += 3
     if tr_turk: count += 30
     if tr_punc: count += 18
     if tr_suffix: count += 132
