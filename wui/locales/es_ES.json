@@ -306,7 +306,7 @@
     "TOKENIZER_INFO_MAX_SENT_LEN": "Longitud máxima de una sola cadena antes de ser omitida. Mantener alto para fragmentos grandes de base de datos.",
     "TOKENIZER_LABEL_RES_TOKENS": "Tokens Reservados de Sentencepiece",
     "TOKENIZER_CHK_LONG": "Incluir vocales largas (ā, ē, ī, ō, ū)",
-	"TOKENIZER_CHK_ACCENT": "Incluir acentos (â, é, î, û)",
+    "TOKENIZER_CHK_ACCENT": "Incluir acentos (â, é, î, û)",
     "TOKENIZER_CHK_PUNC": "Incluir puntuación (.  ,  ?  !  '  :  ;  ...)",
     "TOKENIZER_HEADER_STATS": "### Estadísticas de Vocabulario",
     "TOKENIZER_LABEL_ADDED_TOKENS": "Tokens Añadidos",
@@ -605,5 +605,7 @@
     "FINETUNE_BTN_UNWRAP": "🪄 Desempaquetar y Guardar",
     "FINETUNE_LABEL_UNWRAP_STATUS": "Estado del Desempaquetado",
     "FINETUNE_PLACEHOLDER_UNWRAP": "El resultado aparecerá aquí...",
-    "FINETUNE": "FINETUNE"
+    "FINETUNE": "FINETUNE",
+    "TRAINER_LABEL_VOCAB_TYPE": "Tipo de Vocabulario",
+    "FINETUNE_LABEL_VOCAB_TYPE": "Tipo de Vocabulario"
 }

@@ -306,7 +306,7 @@
     "TOKENIZER_INFO_MAX_SENT_LEN": "Atlanmadan önceki maksimum dize uzunluğu. Büyük Veritabanı parçaları için yüksek tutun.",
     "TOKENIZER_LABEL_RES_TOKENS": "Sentencepiece Ayrılmış Simgeleri",
     "TOKENIZER_CHK_LONG": "Uzun ünlüleri dahil et (ā, ē, ī, ō, ū)",
-	"TOKENIZER_CHK_ACCENT": "Aksanları dahil et (â, é, î, û)",
+    "TOKENIZER_CHK_ACCENT": "Aksanları dahil et (â, é, î, û)",
     "TOKENIZER_CHK_PUNC": "Noktalama işaretlerini dahil et (.  ,  ?  !  '  :  ;  ...)",
     "TOKENIZER_HEADER_STATS": "### Kelime Dağarcığı İstatistikleri",
     "TOKENIZER_LABEL_ADDED_TOKENS": "Eklenen Tokenler",
@@ -604,5 +604,7 @@
     "FINETUNE_BTN_UNWRAP": "🪄 Paketini Aç ve Kaydet",
     "FINETUNE_LABEL_UNWRAP_STATUS": "Paket Açma Durumu",
     "FINETUNE_PLACEHOLDER_UNWRAP": "Sonuç burada görünecek...",
-    "FINETUNE": "İNCE AYAR"
+    "FINETUNE": "İNCE AYAR",
+    "TRAINER_LABEL_VOCAB_TYPE": "Sözlük Tipi",
+    "FINETUNE_LABEL_VOCAB_TYPE": "Sözlük Tipi"
 }

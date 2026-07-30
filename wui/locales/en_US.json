@@ -304,7 +304,7 @@
     "TOKENIZER_INFO_MAX_SENT_LEN": "Maximum length of a single string before it gets skipped. Keep high for large Corpus DB chunks.",
     "TOKENIZER_LABEL_RES_TOKENS": "Sentencepiece Reserved Tokens",
     "TOKENIZER_CHK_LONG": "Include long vowels (ā, ē, ī, ō, ū)",
-	"TOKENIZER_CHK_ACCENT": "Include accents (â, é, î, û)",
+    "TOKENIZER_CHK_ACCENT": "Include accents (â, é, î, û)",
     "TOKENIZER_CHK_PUNC": "Include punctuation (.  ,  ?  !  '  :  ;  ...)",
     "TOKENIZER_HEADER_SPECIAL": "### Add Special Tokens",
     "TOKENIZER_LABEL_SPECIAL": "Special Tokens",
@@ -605,5 +605,7 @@
     "FINETUNE_BTN_UNWRAP": "🪄 Unwrap and Save",
     "FINETUNE_LABEL_UNWRAP_STATUS": "Unwrap Status",
     "FINETUNE_PLACEHOLDER_UNWRAP": "Result will appear here...",
-    "FINETUNE": "FINETUNE"
+    "FINETUNE": "FINETUNE",
+    "TRAINER_LABEL_VOCAB_TYPE": "Vocabulary Type",
+    "FINETUNE_LABEL_VOCAB_TYPE": "Vocabulary Type"
 }
