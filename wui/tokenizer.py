@@ -277,24 +277,33 @@ def train_tokenizer_ui(
 
     # 5. Parse Special Tokens
     tr_suffix = [
-        "acak", "ar", "ca", "ce", "cı", "cık", "cıl",
-        "ci", "cik", "cil", "cu", "cul", "cü", "cül", "ça",
-        "çe", "çık", "çıl", "çik", "çil", "çul", "çül", "da",
-        "dan", "daş", "de", "den", "deş", "dı", "dır", "di",
-        "dir", "du", "dur", "dü", "dür", "ecek", "er",
-        "ım", "ın", "ıncı", "ıntı", "ır", "ıt",
-        "im", "in", "inci", "inti", "ir", "it", "kar", "kâr",
-        "la", "lan", "lar", "laş", "le", "len", "ler", "leş",
-        "lı", "lık", "lış", "li", "lik", "liş", "lu", "luk",
-        "luş", "lü", "lük", "lüş", "ma", "mak", "me", "mek",
-        "mış", "mız", "miş", "miz", "msı", "msi", "muş", "muz",
-        "müş", "müz", "nin", "nun", "sal", "sel", "sın",
-        "sınız", "sız", "sin", "siniz", "siz", "sun", "sunuz",
-        "suz", "sün", "sünüz", "süz", "ta", "tan", "taş", "te",
-        "ten", "teş", "tı", "tır", "ti", "tir", "tu", "tur",
-        "tü", "tür", "um", "un", "uncu", "ur",
-        "ün", "ür", "uz", "ya", "ye", "yız", "yiz", "yla",
-        "yle", "yor", "yuz", "yüz"
+        "acak", "aç", "ar", "at",
+		"bin",		
+		"ca", "ce", "cı", "cık", "cıl", "ci", "cik", "cil", "cu", "cul", "cü", "cül", 
+		"ça", "çe", "çı", "çık", "çıl", "çi", "çik", "çil", "çul", "çul", "çü", "çül", 
+		"da", "dan", "daş", "de", "den", "deş", "dı", 
+		"dır", "di", "dir", "du", "dur", "dü", "dür", 
+		"ecek", "eç", "er", "et",
+		"gıç", "gın", "giç", "gin", "gun", "gün",
+        "ım", "ın", "ıncı", "ınç", "ıntı", "ır", "ıt",
+        "im", "in", "inci", "inç", "inti", "ir", "it", 
+		"kar", "kâr", "kı", "ki", "kır", "kir",
+        "la", "lan", "lar", "laş", 
+		"le", "len", "ler", "leş",
+        "lı", "lık", "lış", 
+		"li", "lik", "liş", 
+		"lu", "luk", "luş", 
+		"lü", "lük", "lüş", 
+		"ma", "mak", "me", "mek", "mış", "mız", "miş", 
+		"miz", "msı", "msi", "muş", "muz", "müş", "müz", 
+		"nin", "nun", 
+		"sal", "sel", "sın", "sınız", "sız", "sin", "siniz", 
+		"siz", "sun", "sunuz", "suz", "sün", "sünüz", "süz", 
+		"ta", "tan", "taş", "te", "ten", "teş", "tı", 
+		"tır", "ti", "tir", "tu", "tur", "tü", "tür", 
+		"um", "un", "ur", "uz",
+        "üm", "ün", "ür", "üz", 
+		"ya", "ye", "yız", "yiz", "yla", "yle", "yor", "yuz", "yüz"
     ]
     
     tr_spec = ["ı", "▁ı", "ç", "▁ç", "ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
@@ -309,7 +318,7 @@ def train_tokenizer_ui(
     
     tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
     
-    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁...", "\"", "▁\""]
+    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁..."]
                              
     if tr_spec_chk:
         for tag in tr_spec:
@@ -1389,7 +1398,7 @@ def unpack_model_to_json(uploaded_model):
             
         json_output = json.dumps(data, ensure_ascii=False, indent=2)
         
-        out_dir = os.path.join(core.tokenizer_directory(), "unpack")
+        out_dir = core.tokenizer_directory()
         os.makedirs(out_dir, exist_ok=True)
         
         base_name = os.path.basename(model_path)
@@ -1420,12 +1429,11 @@ def repack_json_to_model(uploaded_json):
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
-        out_dir = os.path.join(core.tokenizer_directory(), "repack")
+        out_dir = core.tokenizer_directory()
         os.makedirs(out_dir, exist_ok=True)
         
-        base_name = os.path.basename(json_path)
-        name_without_ext = os.path.splitext(base_name)[0]
-        ds_name = f"{name_without_ext}_repacked_bpe"
+        p_name = core.project_name if core.project_name else "myproject"
+        ds_name = f"{p_name}_e_bpe"
         bpe_path = os.path.join(out_dir, f"{ds_name}.model")
         vocab_path = os.path.join(out_dir, f"{ds_name}.vocab")
         
@@ -1574,10 +1582,10 @@ def create_demo():
                     
             with gr.Row():   
                 vocab_slider = gr.Slider(
-                    minimum=2000,
+                    minimum=1000,
                     maximum=30000,
                     value=12000,
-                    step=1000,
+                    step=500,
                     label=_("TOKENIZER_SLIDER_VOCAB")
                 )
                 

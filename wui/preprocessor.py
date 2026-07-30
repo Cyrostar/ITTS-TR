@@ -343,11 +343,15 @@ def run_preprocessing_ui(
             tok_dir = os.path.join(core.path_base, "projects", p_name, "finetune", "tokenizers")
             if vocab_type == "merged":
                 sp_path = os.path.join(tok_dir, f"{p_name}_m_bpe.model")
+            elif vocab_type == "edited":
+                sp_path = os.path.join(tok_dir, f"{p_name}_e_bpe.model")
             else:
                 sp_path = os.path.join(tok_dir, f"{p_name}_bpe.model")
         else:
             if vocab_type == "merged":
                 sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_m_bpe.model")
+            elif vocab_type == "edited":
+                sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_e_bpe.model")
             else:
                 sp_path = os.path.join(core.tokenizer_directory(), f"{p_name}_bpe.model")
 
@@ -546,7 +550,7 @@ def create_demo():
                     )
                     vocab_type_dd = gr.Dropdown(
                         label=_("PREPROCESSOR_LABEL_VOCAB_TYPE"), 
-                        choices=["trained", "merged"],
+                        choices=["trained", "merged", "edited"],
                         value="trained",
                         interactive=True
                     )

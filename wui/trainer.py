@@ -63,7 +63,7 @@ def get_checkpoint_list(run_name):
     files = [f for f in os.listdir(run_dir) if f.endswith(".pth") and f != "gpt.pth"]
     return gr.Dropdown(choices=sorted(files))
 
-def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as_base=False, project_name=None, use_merged=False):
+def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as_base=False, project_name=None, vocab_type="trained"):
     """Unwraps the selected checkpoint and saves it as gpt.pth in the same folder."""
     if not run_name or not selected_file:
         return "❌ Error: Selection missing."
@@ -113,11 +113,16 @@ def unwrap_and_save_handler(run_name, selected_file, apply_conformer_map, use_as
             os.makedirs(tok_dir_new, exist_ok=True)
             
             tok_dir_old = os.path.join(core.path_base, "projects", project_name, "tokenizers")
-            if use_merged:
+            if vocab_type == "merged":
                 old_tok_name = f"{project_name}_m_bpe.model"
                 new_tok_name = f"{project_name}_m_bpe.model"
                 old_vocab_name = f"{project_name}_m_bpe.vocab"
                 new_vocab_name = f"{project_name}_m_bpe.vocab"
+            elif vocab_type == "edited":
+                old_tok_name = f"{project_name}_e_bpe.model"
+                new_tok_name = f"{project_name}_e_bpe.model"
+                old_vocab_name = f"{project_name}_e_bpe.vocab"
+                new_vocab_name = f"{project_name}_e_bpe.vocab"
             else:
                 old_tok_name = f"{project_name}_bpe.model"
                 new_tok_name = f"{project_name}_bpe.model"
@@ -449,7 +454,7 @@ def evaluate(model, loader, device, use_duration, duration_dropout):
 def train_official_ui(
     selected_project, config_path, tokenizer_path, train_manifest, val_manifest, vector_folder_name, 
     run_name, base_model_type, resume_ckpt, epochs, batch_size, lr, grad_accum, num_workers, 
-    use_duration, duration_dropout, save_every, use_compile, case_format, tok_type, use_merged,
+    use_duration, duration_dropout, save_every, use_compile, case_format, tok_type, vocab_type,
     resize_vocab, expand_text, expand_audio,
     lang, wordify, abbrev, extract
 ):
@@ -501,7 +506,7 @@ def train_official_ui(
         # 2. Tokenizer
         frozen_tokenizer_path = os.path.join(run_dir, "bpe.model")
         
-        if use_merged and not is_resuming:
+        if vocab_type == "merged" and not is_resuming:
             tok_dir = os.path.dirname(tokenizer_path)
             merged_path = os.path.join(tok_dir, f"{selected_project}_m_bpe.model")
             
@@ -510,6 +515,16 @@ def train_official_ui(
                 yield update_ui(f"🔄 Switched target tokenizer to merged model: {merged_path}")
             else:
                 yield update_ui(f"⚠️ Merged model not found at {merged_path}. Falling back to standard model.")
+                
+        elif vocab_type == "edited" and not is_resuming:
+            tok_dir = os.path.dirname(tokenizer_path)
+            edited_path = os.path.join(tok_dir, f"{selected_project}_e_bpe.model")
+            
+            if os.path.exists(edited_path):
+                tokenizer_path = edited_path
+                yield update_ui(f"🔄 Switched target tokenizer to edited model: {edited_path}")
+            else:
+                yield update_ui(f"⚠️ Edited model not found at {edited_path}. Falling back to standard model.")
                 
         if is_resuming and os.path.exists(frozen_tokenizer_path):
             yield update_ui(f"🔒 Resume: Using EXISTING frozen tokenizer: {frozen_tokenizer_path}")
@@ -809,13 +824,13 @@ def list_available_projects():
 
 def auto_discover_project_files(project_name):
     if not project_name:
-        return "", "", "", "", "", "❌ No project selected", False, "itts-tr", "lowercase", "tr", True, False, False
+        return "", "", "", "", "", "❌ No project selected", "trained", "itts-tr", "lowercase", "tr", True, False, False
 
     proj_dir = os.path.join(core.path_base, "projects", project_name)
     config_path = os.path.join(proj_dir, "configs", "config.yaml")
     
     if not os.path.exists(config_path):
-        return "", "", "", "", "", f"❌ Config not found in {config_path}", False, "itts-tr", "lowercase", "tr", True, False, False
+        return "", "", "", "", "", f"❌ Config not found in {config_path}", "trained", "itts-tr", "lowercase", "tr", True, False, False
 
     ext_dir = os.path.join(proj_dir, "extractions")
     train_manifest = ""
@@ -831,14 +846,14 @@ def auto_discover_project_files(project_name):
             val_manifest = os.path.join(ext_dir, f"{dataset_name}_val.jsonl")
     
     if not train_manifest:
-        return config_path, "", "", "", "", "❌ No *_train.jsonl found in extractions/", False, "itts-tr", "lowercase", "tr", True, False, False
+        return config_path, "", "", "", "", "❌ No *_train.jsonl found in extractions/", "trained", "itts-tr", "lowercase", "tr", True, False, False
 
     # --- SMART DISCOVERY: CHECK MAIN config.yaml ---
     tok_path = ""
     vector_folder = dataset_name 
     
     # Defaults
-    is_merged = False
+    vocab_type = "trained"
     tok_type = "itts-tr"
     c_format = "lowercase"
     lang = "tr"
@@ -868,9 +883,15 @@ def auto_discover_project_files(project_name):
                 ext_data = json.load(f)
                 
             raw_tok_path = ext_data.get("tokenizer_path", "")
-            is_merged = ext_data.get("is_merged_model", False)
             
             if raw_tok_path:
+                if "_m_bpe.model" in raw_tok_path:
+                    vocab_type = "merged"
+                elif "_e_bpe.model" in raw_tok_path:
+                    vocab_type = "edited"
+                else:
+                    vocab_type = "trained"
+                    
                 abs_tok_path = os.path.join(core.path_base, raw_tok_path)
                 if os.path.exists(abs_tok_path):
                     tok_path = abs_tok_path
@@ -881,7 +902,7 @@ def auto_discover_project_files(project_name):
         print(f"[Smart Discovery] ⚠️ Error reading configs: {e}")
         
     if not tok_path:
-        return config_path, "", "", "", "", "❌ No .model file found", False, tok_type, c_format, lang, wordify, abbrev, extract
+        return config_path, "", "", "", "", "❌ No .model file found", vocab_type, tok_type, c_format, lang, wordify, abbrev, extract
 
     status_msg = (
         f"✅ Found Config\n"
@@ -890,9 +911,9 @@ def auto_discover_project_files(project_name):
         f"ℹ️ Settings: {tok_type} | {c_format} | lang: {lang} | wordify: {wordify} | abbrev: {abbrev}"
     )
 
-    return config_path, tok_path, train_manifest, val_manifest, vector_folder, status_msg, is_merged, tok_type, c_format, lang, wordify, abbrev, extract
+    return config_path, tok_path, train_manifest, val_manifest, vector_folder, status_msg, vocab_type, tok_type, c_format, lang, wordify, abbrev, extract
 
-def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, _, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract):
+def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, _, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, vocab_type, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract):
     if not name.strip():
         yield "❌ Run Name is required to resume. Please enter the folder name.", "Error", "Piece:"
         return
@@ -912,10 +933,10 @@ def resume_official_ui(proj, config, tokenizer, train, val, vec, name, base_mode
     
     if os.path.exists(interrupted_path):
         resume_path = interrupted_path
-        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
+        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, vocab_type, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
     elif os.path.exists(latest_path):
         resume_path = latest_path
-        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, use_merged, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
+        yield from train_official_ui(proj, config, tokenizer, train, val, vec, name, base_model_type, resume_path, epochs, bs, lr, accum, workers, dur, drop, save, use_compile, case_format, tok_type, vocab_type, resize_vocab, expand_text, expand_audio, lang, wordify, abbrev, extract)
     else:
         yield f"❌ Could not find any checkpoint (gpt_interrupted.pth or gpt_latest.pth) in: {run_dir}", "Error"
     
@@ -941,7 +962,11 @@ def create_demo():
                 refresh_btn = gr.Button(_("TRAINER_BTN_SCAN_PROJECTS"), size="lg")
                 with gr.Row():
                     use_duration = gr.Checkbox(label=_("TRAINER_CHK_USE_DURATION"), value=True)
-                    use_merged = gr.Checkbox(label=_("TRAINER_CHK_USE_MERGED"), value=False)
+                    vocab_type_dd = gr.Dropdown(
+                        label=_("TRAINER_LABEL_VOCAB_TYPE"), 
+                        choices=["trained", "merged", "edited"],
+                        value="trained"
+                    )
                     use_compile = gr.Checkbox(label=_("TRAINER_CHK_USE_COMPILE"), value=False)
             with gr.Column(scale=1):
                 with gr.Row():
@@ -1035,38 +1060,41 @@ def create_demo():
         
         unwrap_btn.click(
             unwrap_and_save_handler, 
-            inputs=[run_name, ckpt_selector, conformer_map_check, base_model_check, project_dd, use_merged],
+            inputs=[run_name, ckpt_selector, conformer_map_check, base_model_check, project_dd, vocab_type_dd],
             outputs=[unwrap_status]
         )
         
-        def toggle_merged_ui(is_merged, current_path, proj_name):
+        def toggle_vocab_ui(vocab_type, current_path, proj_name):
             if not current_path or not proj_name: 
                 return current_path
             
             tok_dir = os.path.dirname(current_path)
-            if is_merged:
-                # Switch to merged
+            if vocab_type == "merged":
                 return os.path.join(tok_dir, f"{proj_name}_m_bpe.model")
+            elif vocab_type == "edited":
+                return os.path.join(tok_dir, f"{proj_name}_e_bpe.model")
             else:
-                # Switch back to standard
                 return os.path.join(tok_dir, f"{proj_name}_bpe.model")
                 
-        use_merged.change(
-            fn=toggle_merged_ui,
-            inputs=[use_merged, tokenizer, project_dd],
+        vocab_type_dd.change(
+            fn=toggle_vocab_ui,
+            inputs=[vocab_type_dd, tokenizer, project_dd],
             outputs=[tokenizer]
         )
 
         def on_project_select(p_name):
-            conf, tok, tr, val, vec, stat, is_merged, tok_type, c_format, lang, wordify, abbrev, extract = auto_discover_project_files(p_name)
+            conf, tok, tr, val, vec, stat, vocab_type, tok_type, c_format, lang, wordify, abbrev, extract = auto_discover_project_files(p_name)
             
-            if is_merged and tok:
+            if tok:
                 tok_dir = os.path.dirname(tok)
-                tok = os.path.join(tok_dir, f"{p_name}_m_bpe.model")
+                if vocab_type == "merged":
+                    tok = os.path.join(tok_dir, f"{p_name}_m_bpe.model")
+                elif vocab_type == "edited":
+                    tok = os.path.join(tok_dir, f"{p_name}_e_bpe.model")
             
             return (
                 conf, tok, tr, val, vec, stat, p_name, 
-                gr.update(value=is_merged), 
+                gr.update(value=vocab_type), 
                 gr.update(value=tok_type), 
                 gr.update(value=c_format), 
                 lang, wordify, abbrev, extract
@@ -1075,7 +1103,7 @@ def create_demo():
         project_dd.change(
             on_project_select, 
             inputs=[project_dd], 
-            outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, use_merged, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
+            outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, vocab_type_dd, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
         )
         
         def load_initial_project():
@@ -1086,7 +1114,7 @@ def create_demo():
         demo.load(
             fn=load_initial_project,
             inputs=[],
-            outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, use_merged, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
+            outputs=[config, tokenizer, train_manifest, val_manifest, vector_folder, logs, run_name, vocab_type_dd, tok_type_dd, case_format, state_lang, state_wordify, state_abbrev, state_extract]
         )
         
         refresh_btn.click(lambda: gr.Dropdown(choices=list_available_projects()), outputs=[project_dd])
@@ -1095,7 +1123,7 @@ def create_demo():
             project_dd, config, tokenizer, train_manifest, val_manifest, vector_folder, 
             run_name, base_model_dd, resume_ckpt, epochs, bs, lr, grad_accum, num_workers_slider, 
             use_duration, duration_dropout, save_every, use_compile, case_format, tok_type_dd, 
-            use_merged, resize_vocab, expand_text, expand_audio,
+            vocab_type_dd, resize_vocab, expand_text, expand_audio,
             state_lang, state_wordify, state_abbrev, state_extract
         ]
         
