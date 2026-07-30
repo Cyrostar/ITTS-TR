@@ -1,7 +1,8 @@
 <h1 align="center">ITTS-TR</h1> 
 <div align="center"> 
   <a href="README.md"><img src="img/flags/gb.svg" alt="GB" width="24"/></a>  | 
-  <a href="README-TR.md"><img src="img/flags/tr.svg" alt="TR" width="24"/></a>
+  <a href="README-TR.md"><img src="img/flags/tr.svg" alt="TR" width="24"/></a> |
+  <a href="README-ES.md"><img src="img/flags/es.svg" alt="ES" width="24"/></a>
 </div>
 
 ---
