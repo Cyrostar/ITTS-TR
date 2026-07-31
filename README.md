@@ -79,7 +79,9 @@ bat\tensorboard.bat
 
 To achieve maximum training and inference speed by utilizing dynamically compiled GPU kernels, you can enable OpenAI's Triton. Since Triton compiles kernels natively at runtime, Windows users must configure a strict build environment.
 
-**System Requirements for Triton:** 1. **Visual Studio C++ Build Tools:** Download the Visual Studio Installer and install the **"Desktop development with C++"** workload. This provisions the essential MSVC compiler (`cl.exe`).
+**System Requirements for Triton:** 
+
+1. **Visual Studio C++ Build Tools:** Download the Visual Studio Installer and install the **"Desktop development with C++"** workload. This provisions the essential MSVC compiler (`cl.exe`).
 
 2. **NVIDIA CUDA Toolkit:** Install the official standalone CUDA Toolkit. The version must exactly match the CUDA version you selected for PyTorch during the `install.bat` phase (e.g., 12.6, 12.8, or 13.0). 
 
