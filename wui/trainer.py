@@ -413,6 +413,7 @@ def compute_losses_official(model, batch, device, use_duration=True, duration_dr
 
     metrics = {}
     with torch.no_grad():
+        # Mel Accuracy
         mel_logits_flat = mel_logits.permute(0, 2, 1).reshape(-1, mel_logits.size(1))
         mel_targets_flat = mel_targets.reshape(-1)
         mel_mask_flat = mel_mask.reshape(-1)
@@ -423,12 +424,24 @@ def compute_losses_official(model, batch, device, use_duration=True, duration_dr
         else:
             top1 = 0.0
         metrics["mel_top1"] = top1
+        
+        # Text Accuracy
+        text_logits_flat = text_logits.permute(0, 2, 1).reshape(-1, text_logits.size(1))
+        text_targets_flat = text_targets.reshape(-1)
+        text_mask_flat = text_mask.reshape(-1)
+        if text_mask_flat.any():
+            valid_text_logits = text_logits_flat[text_mask_flat]
+            valid_text_targets = text_targets_flat[text_mask_flat]
+            text_top1 = (valid_text_logits.argmax(dim=-1) == valid_text_targets).float().mean().item()
+        else:
+            text_top1 = 0.0
+        metrics["text_top1"] = text_top1
 
     return text_loss, mel_loss, metrics
 
 def evaluate(model, loader, device, use_duration, duration_dropout):
     model.eval()
-    totals = {"text_loss": 0.0, "mel_loss": 0.0, "mel_top1": 0.0}
+    totals = {"text_loss": 0.0, "mel_loss": 0.0, "mel_top1": 0.0, "text_top1": 0.0}
     count = 0
     with torch.no_grad():
         for batch in loader:
@@ -441,6 +454,7 @@ def evaluate(model, loader, device, use_duration, duration_dropout):
             totals["text_loss"] += text_loss.item() * bsz
             totals["mel_loss"] += mel_loss.item() * bsz
             totals["mel_top1"] += metrics["mel_top1"] * bsz
+            totals["text_top1"] += metrics.get("text_top1", 0.0) * bsz
             count += bsz
             
     model.train()
@@ -675,6 +689,7 @@ def train_official_ui(
     yield update_ui("🎬 Training Loop Starting...")
     
     total_batches = len(train_loader)
+    steps_per_epoch = total_batches // grad_accum
     
     # Track stats
     current_acc = 0.0
@@ -684,11 +699,21 @@ def train_official_ui(
         if STOP_TRAINING: break
         yield update_ui(f"\n🌀 Epoch {epoch + 1}/{epochs}")
         
+        batches_to_skip = 0
+        if is_resuming and epoch == start_epoch:
+            steps_in_current_epoch = global_step - (start_epoch * steps_per_epoch)
+            batches_to_skip = steps_in_current_epoch * grad_accum
+            if batches_to_skip > 0:
+                yield update_ui(f"⏩ Fast-forwarding: Skipped {batches_to_skip} already processed batches...")
+                
         # Reset accumulation for the new epoch to avoid phantom gradients from previous epoch
         optimizer.zero_grad() 
         epoch_valid_steps = 0 
         
         for i, batch in enumerate(train_loader):
+            if i < batches_to_skip:
+                continue
+                
             # --- UPDATED STATUS TEXT ---
             steps_left_in_epoch = (total_batches - i) // grad_accum
             status_text = (
@@ -761,6 +786,7 @@ def train_official_ui(
                 writer.add_scalar("Train/Loss_Text", text_loss.item(), global_step)
                 writer.add_scalar("Train/Loss_Mel", mel_loss.item(), global_step)
                 writer.add_scalar("Train/Mel_Top1", metrics["mel_top1"], global_step)
+                writer.add_scalar("Train/Text_Top1", metrics["text_top1"], global_step)
                 writer.add_scalar("Train/LR", current_lr, global_step)
 
                 # Log to scrolling text
@@ -777,6 +803,7 @@ def train_official_ui(
                     writer.add_scalar("Val/Loss_Text", val_metrics["text_loss"], global_step)
                     writer.add_scalar("Val/Loss_Mel", val_metrics["mel_loss"], global_step)
                     writer.add_scalar("Val/Mel_Top1", val_metrics["mel_top1"], global_step)
+                    writer.add_scalar("Val/Text_Top1", val_metrics["text_top1"], global_step)
                     
                     val_msg = f"   🧪 VAL RESULT: T-Loss: {val_metrics['text_loss']:.3f} | M-Loss: {val_metrics['mel_loss']:.3f} | Acc: {val_metrics['mel_top1']:.3f}"
                     yield update_ui(val_msg, status_text)

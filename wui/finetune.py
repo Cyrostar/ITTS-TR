@@ -622,6 +622,7 @@ def finetune_official_ui(
     yield update_ui("🎬 Training Loop Starting...")
     
     total_batches = len(train_loader)
+    steps_per_epoch = total_batches // grad_accum
     
     # Track stats
     current_acc = 0.0
@@ -631,11 +632,21 @@ def finetune_official_ui(
         if STOP_TRAINING: break
         yield update_ui(f"\n🌀 Epoch {epoch + 1}/{epochs}")
         
+        batches_to_skip = 0
+        if is_resuming and epoch == start_epoch:
+            steps_in_current_epoch = global_step - (start_epoch * steps_per_epoch)
+            batches_to_skip = steps_in_current_epoch * grad_accum
+            if batches_to_skip > 0:
+                yield update_ui(f"⏩ Fast-forwarding: Skipped {batches_to_skip} already processed batches...")
+                
         # Reset accumulation for the new epoch to avoid phantom gradients from previous epoch
         optimizer.zero_grad() 
         epoch_valid_steps = 0 
         
         for i, batch in enumerate(train_loader):
+            if i < batches_to_skip:
+                continue
+                
             # --- UPDATED STATUS TEXT ---
             steps_left_in_epoch = (total_batches - i) // grad_accum
             status_text = (
