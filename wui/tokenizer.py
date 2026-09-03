@@ -123,14 +123,17 @@ def train_tokenizer_ui(
     lang_markers_chk,
     style_chk,
     emotion_chk,
+    tr_latin_chk,
+    tr_seng_chk,
     tr_spec_chk,
     tr_alone_chk,
-    tr_seng_chk,
-    tr_turk_chk,    
     tr_long_chk, 
     tr_accent_chk,
+    tr_turk_chk,    
     tr_punc_chk,
     tr_suffix_chk,
+    tr_tense_chk,
+    tr_conj_chk,
     use_only_corpus,
     norm_rule,
     case_rule,
@@ -145,6 +148,7 @@ def train_tokenizer_ui(
     byte_fallback,
     inject_syllables,
     syllable_count,
+    tr_root_chk,
     inject_wrd,
     wrd_count,
     progress=gr.Progress()
@@ -274,8 +278,29 @@ def train_tokenizer_ui(
                 user_symbols.append(tag)
                 
         yield log(f"🎭 Added {len(emotion_tags)} Emotion Tags to Tokenizer")
-
+        
     # 5. Parse Special Tokens
+    tr_latin = [
+        "a", "▁a", "b", "▁b", "c", "▁c", "d", "▁d", "e", "▁e", "f", "▁f", "g", "▁g",
+        "h", "▁h", "i", "▁i", "j", "▁j", "k", "▁k", "l", "▁l", "m", "▁m", "n", "▁n",
+        "o", "▁o", "p", "▁p", "r", "▁r", "s", "▁s", "t", "▁t", "u", "▁u", "v", "▁v",
+        "y", "▁y", "z", "▁z"
+    ]
+    
+    tr_seng = ["q", "▁q", "w", "▁w", "x", "▁x"]
+       
+    tr_spec = ["ı", "▁ı", "ç", "▁ç", "ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
+    
+    tr_alone = ["▁a", "▁e", "▁i", "▁o", "▁u"]
+    
+    tr_long = ["ā", "▁ā", "ē", "▁ē", "ī", "▁ī", "ō", "▁ō", "ū", "▁ū"]
+    
+    tr_accent = ["â", "▁â", "é", "▁é", "î", "▁î", "ô", "▁ô", "û", "▁û", "ñ", "▁ñ"]    
+    
+    tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
+    
+    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", "''", "▁''", ":", "▁:", ";", "▁;", "...", "▁...", "(", "▁(", ")", "▁)", "-", "▁-"]
+    
     tr_suffix = [
         "acak", "aç", "ar", "at",
 		"bin",		
@@ -284,9 +309,9 @@ def train_tokenizer_ui(
 		"da", "dan", "daş", "de", "den", "deş", "dı", 
 		"dır", "di", "dir", "du", "dur", "dü", "dür", 
 		"ecek", "eç", "er", "et",
-		"gıç", "gın", "giç", "gin", "gun", "gün",
-        "ım", "ın", "ıncı", "ınç", "ıntı", "ır", "ıt",
-        "im", "in", "inci", "inç", "inti", "ir", "it", 
+		"gı", "gıç", "gın", "gi", "giç", "gin", "gu", "gun", "gü", "gün",
+        "ım", "ın", "ıncı", "ınç", "ıntı", "ır", "ıt", "ız",
+        "im", "in", "inci", "inç", "inti", "ir", "it", "iz",
 		"kar", "kâr", "kı", "ki", "kır", "kir",
         "la", "lan", "lar", "laş", 
 		"le", "len", "ler", "leş",
@@ -294,31 +319,41 @@ def train_tokenizer_ui(
 		"li", "lik", "liş", 
 		"lu", "luk", "luş", 
 		"lü", "lük", "lüş", 
-		"ma", "mak", "me", "mek", "mış", "mız", "miş", 
-		"miz", "msı", "msi", "muş", "muz", "müş", "müz", 
+		"ma", "mak", "me", "mek", "mı", "mış", "mız", "mi", "miş", 
+		"miz", "msı", "msi", "mu", "muş", "muz", "mü", "müş", "müz", 
 		"nin", "nun", 
-		"sal", "sel", "sın", "sınız", "sız", "sin", "siniz", 
-		"siz", "sun", "sunuz", "suz", "sün", "sünüz", "süz", 
+		"sa",  "sak", "sal", "se", "sek", "sel", "sı", "sık", "sın", "sız", "si", "sik", "sin", "siz", 
+        "su", "sun", "suz", "sü", "sün", "süz", 
 		"ta", "tan", "taş", "te", "ten", "teş", "tı", 
 		"tır", "ti", "tir", "tu", "tur", "tü", "tür", 
 		"um", "un", "ur", "uz",
         "üm", "ün", "ür", "üz", 
-		"ya", "ye", "yız", "yiz", "yla", "yle", "yor", "yuz", "yüz"
+		"ya", "ye", "yı", "yız", "yi", "yiz", "yla", "yle", "yo", "yor", "yuz", "yüz"
     ]
     
-    tr_spec = ["ı", "▁ı", "ç", "▁ç", "ğ", "ö", "▁ö", "ş", "▁ş", "ü", "▁ü"]
+    tr_tense = [
+        "ar", "ay", "ca", "cak", "ce", "cek", "dı", "dık", "dım", "dıy", "di", "dik", "dim", "diy", "du", "duk", "dum", "duy", "dü", "dük", "düm", "düy", 
+        "er", "ey", "ğım", "ğız", "ğim", "ğiz", "ım", "ır", "ıyor", "ız", "im", "ir", "iyor", "iz", "lı", "li", "ma", "me", "mış", "miş", "muş", "müş", 
+        "nız", "niz", "nuz", "nüz", "sa", "san", "say", "se", "sen", "sey", "sı", "sın", "si", "sin", "su", "sun", "sü", "sün", 
+        "tı", "tık", "tım", "ti", "tik", "tim", "tu", "tuk", "tum", "tü", "tük", "tüm", "um", "ur", "uyor", "uz", "üm", "ür", "üyor", "üz", "yor"   
+    ]
     
-    tr_alone = ["▁a", "▁e", "▁i", "▁o", "▁u"]
-    
-    tr_long = ["ā", "▁ā", "ē", "▁ē", "ī", "▁ī", "ō", "▁ō", "ū", "▁ū"]
-    
-    tr_accent = ["â", "▁â", "é", "▁é", "î", "▁î", "ô", "▁ô", "û", "▁û", "ñ", "▁ñ"]
-    
-    tr_seng = ["q", "w", "x"]
-    
-    tr_turk = ["ə", "▁ə", "x", "▁x", "q", "▁q", "ә", "▁ә", "ғ", "▁ғ", "қ", "▁қ", "ң", "▁ң", "ө", "▁ө", "ұ", "▁ұ", "ү", "▁ү", "җ", "▁җ", "ä", "▁ä", "ž", "▁ž", "ň", "▁ň", "ý", "▁ý"]
-    
-    tr_punc = [".", "▁.", ",", "▁,", "?", "▁?", "!", "▁!", "'", "▁'", ":", "▁:", ";", "▁;", "...", "▁..."]
+    tr_conjunction = [
+        "an", "bi", "bu", "ca", "cak", "ça", "çık", "çün", "da", "de", "dem", "fa", "ge", "ha", "hâl", "hat", "he", "hem", "hi","hut", "i", "is", "kâh", "kat", "kı", "ki", "kim", "kin", "kü", "lâ", "le", "ley", "lik", 
+        "ma", "mek", "na", "ne", "ni", "nız", "oy", "öy", "ra", "rek", "sa", "se", "sı", "sıl", "ta", "te", "ter", "üs", "var", "ve", "ya", "yal", "ye", "yi", "yok", "zi", "zık"
+    ]
+                             
+    if tr_latin_chk:
+        for tag in tr_latin:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_latin)} Latin Characters to Tokenizer")
+
+    if tr_seng_chk:
+        for tag in tr_seng:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_seng)} Standard English Letters to Tokenizer")
                              
     if tr_spec_chk:
         for tag in tr_spec:
@@ -344,12 +379,6 @@ def train_tokenizer_ui(
                 user_symbols.append(tag)
         yield log(f"🔤 Added {len(tr_accent)} Turkish Accents to Tokenizer")
                 
-    if tr_seng_chk:
-        for tag in tr_seng:
-            if tag not in user_symbols:
-                user_symbols.append(tag)
-        yield log(f"🔤 Added {len(tr_seng)} Standard English Letters to Tokenizer")
-    
     if tr_turk_chk:
         for tag in tr_turk:
             if tag not in user_symbols:
@@ -374,6 +403,18 @@ def train_tokenizer_ui(
                 user_symbols.append(tag)
         yield log(f"🔤 Added {len(tr_suffix)} Turkish Suffixes to Tokenizer")
         
+    if tr_tense_chk:
+        for tag in tr_tense:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_tense)} Turkish Tenses to Tokenizer")
+        
+    if tr_conj_chk:
+        for tag in tr_conjunction:
+            if tag not in user_symbols:
+                user_symbols.append(tag)
+        yield log(f"🔤 Added {len(tr_conjunction)} Turkish Conjunctions to Tokenizer")
+        
     # 6. Inject High-Frequency Syllables
     if inject_syllables and int(syllable_count) > 0:
         try:
@@ -396,6 +437,56 @@ def train_tokenizer_ui(
         except Exception as e:
             yield log(f"❌ Error fetching syllables: {e}")
             
+    # 7. Inject High-Frequency Words
+    tr_roots = [
+        "ve", "bir", "bu", "ol", "o", "et", "için", "bil", "ile", "gibi", "gel", "bulun", "de", "sonra", "kadar",
+        "kendi", "ver", "yap", "var", "daha", "büyük", "iç", "her", "al", "gün", "ne", "ben", "iki", "zaman", "ki",
+        "taraf", "yer", "en", "fakat", "bütün", "ara", "iş", "çok", "üzeri", "deyil", "gör", "biz", "hâl", "iste", "şey",
+        "yapıl", "el", "git", "kal", "göre", "memleket", "çık", "söyle", "geç", "yol", "veya", "göz", "insan", "şekil",
+        "karşı", "başla", "edil", "başka", "kız", "devlet", "yeni", "son", "şu", "göster", "baş", "hakkında", "diyer",
+        "yok", "şehir", "sen", "yalnız", "bul", "dōru", "kānun", "kadın", "sūret", "millet", "berāber", "gir", "çocuk",
+        "diye", "hayat", "saât", "bugün", "söz", "bāzı", "iyi", "böyle", "dünyā", "tārih", "sene", "bak", "kısım", "ilk",
+        "üzere", "yıl", "veril", "ev", "çalış", "eski", "su", "aynı", "parti", "genç", "üç", "ses", "adam", "mesele",
+        "alt", "şimdi", "biri", "pek", "yan", "madde", "harp", "hiç", "siz", "ön", "bey", "karar", "hükümet", "hâlk",
+        "görül", "olma", "bile", "bırak", "güzel", "hareket", "orta", "birçok", "ancak", "hava", "küçük", "fazla",
+        "eser", "kabūl", "nasıl", "kim", "netīce", "devam", "birlik", "evvel", "kuvvet", "sıra", "ikinci", "ad", "fikir",
+        "derece", "alın", "anla", "burada", "dil", "köy", "üst", "dur", "meydan", "getir", "arkadaş", "biraz", "yaz",
+        "düşün", "yine", "olun", "artık", "ay", "para", "sebep", "bana", "durum", "yaşa", "hak", "işte", "idāre", "yüz",
+        "yazı", "aç", "ora", "düş", "tut", "kaç", "gece", "defā", "deniz", "anlat", "toprak", "çünkü", "cevap", "haber",
+        "yüksek", "vazīfe", "on", "çek", "kapı", "çıkar", "sor", "dün", "yāni", "yakın", "ait", "ileri", "hâttā", "paşa",
+        "şart", "gazete", "memur", "baba", "otur", "dön", "müddet", "ayrıl", "sev", "beri", "beş", "lāzım", "uzun", "az",
+        "kitap", "birinci", "oda", "oku", "bölge", "ihtiyaç", "bura", "bakan", "sāhip", "renk", "miktar", "konuş", "ruh",
+        "öyle", "bakanlık", "öl", "tam", "hādise", "nihāyet", "vaziyet", "dört", "hüküm", "ya", "mejlis", "teşkil",
+        "ordu", "bilhassa", "toplantı", "koy", "merkez", "husus", "önce", "anlaşıl", "yardım", "hemen", "bin", "gerek",
+        "imkan", "tēsir", "bekle", "okul", "geniş", "doktor", "esas", "millī", "bildir", "devir", "nokta", "seçim",
+        "duy", "heyet", "etrāf", "kelime", "at", "komisyon", "usûl", "cemiyet", "çalışma", "açıl", "mal", "sāha",
+        "şöyle", "arka", "gemi", "hepsi", "vücut", "yukarı", "āile", "ticāret", "mevcut", "yaş", "isim", "sür", "herkes",
+        "geçir", "toplan", "belki", "oul", "resim", "kurul", "ayak", "bilgi", "erkek", "aşağı", "sabah", "muhtelif",
+        "düşünce", "akşam", "elde", "mühim", "takdir", "hep", "teşkīlāt", "geri", "tekrar", "kazan", "māna", "ölüm",
+        "kongre", "doğ", "efendi", "öğren", "kullan", "akıl", "ye", "birer", "eyer", "türlü", "sanat", "hastalık",
+        "görün", "ama", "tēmin", "içeri", "meselā", "kalk", "hayvan", "bahset", "batı", "il", "nere", "anne", "binā",
+        "parça", "tek", "henüz", "dāima", "beyaz", "gene", "mevzū", "müessese", "dış", "tanı", "koru", "uzak", "bit",
+        "faāliyet", "fabrika", "açık", "hem", "sokak", "vakit", "yāhut", "dağ", "dāva", "dayan", "tabii", "bakımından",
+        "kol", "mektup", "oyna", "yürü", "rağmen", "hakīkat", "konu", "yabancı", "mahkeme", "kısa", "nispet", "taşı",
+        "dinle", "kur", "ana", "düşman", "hürriyet", "lüzum", "hukuk", "belediye", "dāire", "sayı", "başkan", "halbuki",
+        "takım", "umūmi", "dolayı", "ziyāde", "sana", "dakīka", "derhâl", "oyun", "kuvvetli", "māhiyet", "dāir", "götür",
+        "gönder", "sınıf", "asıl", "sanāyi", "uğra", "yurt", "tākip", "din", "kâlp", "grup", "bugünkü", "sadece", "can",
+        "hazırlan", "polis", "profesör", "karı", "ağaç", "fiyat", "genel", "husūsi", "emīr", "in", "kaybet", "kimse",
+        "tedbir", "fark", "īcap", "topla", "milyon", "taş", "işçi", "milletvekīli", "den", "maksat", "devre", "hangi",
+        "kişi", "evet", "ilçe", "rol", "teklif", "sistem", "yerine", "ağız", "tarz", "asır", "hizmet", "lāzım",
+        "jandarma", "hanım", "arzu", "hafta", "mektep", "çeşit", "varlık", "dolaş", "dolayısıyla", "tespit", "üçüncü",
+        "siyāsi", "vatandaş", "bağlı", "inān", "unut", "liman", "alma", "anlaşma", "bulunma", "denil", "iktisādi",
+        "asker", "yazıl", "konferans", "birtakım", "eşyā", "gül", "yüzünden", "dikkât", "dost", "kardeş", "vergi",
+        "kaynak", "derin"
+    ]
+    
+    # 6.5 Inject Root Words
+    if tr_root_chk:
+        for w in tr_roots:
+            if w not in user_symbols:
+                user_symbols.append(w)
+        yield log(f"💉 Injected {len(tr_roots)} high-frequency roots into the vocabulary.")
+    
     # 7. Inject High-Frequency Words
     if inject_wrd and int(wrd_count) > 0:
         try:
@@ -1463,35 +1554,106 @@ def open_tokenizer_folder():
 # UI CREATION
 # ======================================================
 
-def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_spec, tr_alone, tr_long, tr_accent, tr_seng, tr_turk, tr_punc, tr_suffix, custom_str, inj_syl, syl_c, inj_wrd, wrd_c):
+def update_token_stats(vocab_size, lang, lang_markers, style, emotion, tr_latin_chk, tr_seng_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, tr_accent_chk, tr_turk_chk, tr_punc_chk, tr_suffix_chk, tr_tense_chk, tr_conj_chk, custom_str, inj_syl, syl_c, tr_root_chk, inj_wrd, wrd_c):
     from core import core
-    count = 3  # <s>, </s>, <unk>
     
-    # language list
+    # 1. Base tokens
+    user_symbols = ["<s>", "</s>", "<unk>"]
+    
+    # 2. Languages
     if lang_markers:
-        count += len(core.language_list())
+        for l in core.language_list():
+            if l not in user_symbols: user_symbols.append(l)
     else:
         lang_upper = lang.upper() if lang else ""
-        selected_langs = {"ZH", "EN"}
-        if lang_upper:
-            selected_langs.add(lang_upper)
-        count += len(selected_langs)
+        for l in ["ZH", "EN"]:
+            if l not in user_symbols: user_symbols.append(l)
+        if lang_upper and lang_upper not in user_symbols:
+            user_symbols.append(lang_upper)
+            
+    # 3. Tags
+    if style:
+        for i in range(23): user_symbols.append(f"style_{i}") # Abstract count
+    if emotion:
+        for i in range(37): user_symbols.append(f"emo_{i}")
+        
+    # 4. Arrays
+    # Hardcode the arrays for the UI calculator
+    tr_latin = ["a", "<a>", "b", "<b>", "c", "<c>", "d", "<d>", "e", "<e>", "f", "<f>", "g", "<g>", "h", "<h>", "i", "<i>", "j", "<j>", "k", "<k>", "l", "<l>", "m", "<m>", "n", "<n>", "o", "<o>", "p", "<p>", "r", "<r>", "s", "<s>", "t", "<t>", "u", "<u>", "v", "<v>", "y", "<y>", "z", "<z>"]
+    tr_seng = ["q", "w", "x"]
+    tr_spec = ["ç", "<ç>", "ğ", "<ğ>", "ı", "ı", "<ı>", "ö", "<ö>", "ş", "<ş>"]
+    tr_alone = ["<a", "<e", "<i", "<o", "<u"]
+    tr_long = ["â", "<â>", "ê", "<ê>", "î", "<î>", "ô", "<ô>", "û", "<û>"]
+    tr_accent = ["á", "<á>", "é", "<é>", "í", "<í>", "ó", "<ó>", "ú", "<ú>", "ý", "<ý>"]    
+    tr_turk = ["ä", "<ä>", "x", "<x>", "q", "<q>", "ə", "<ə>", "ç", "<ç>", "ğ", "<ğ>", "ş", "<ş>", "ñ", "<ñ>", "ı", "<ı>", "ö", "<ö>", "ü", "<ü>", "ž", "<ž>", "z", "<z>", "n", "<n>", "y", "<y>"]
+    tr_punc = [".", "<.", ",", "<,", "?", "<?", "!", "<!", "'", "<'", ":", "<:", ";", "<;", "...", "<..."]
+    tr_suffix = ["ca", "ce", "cı", "ci", "cu", "cü", "ça", "çe", "çı", "çi", "çu", "çü", "da", "dan", "de", "den", "dı", "dır", "di", "dir", "du", "dur", "dü", "dür", "ı", "ım", "ın", "ınız", "ız", "i", "im", "in", "iniz", "iz", "la", "lar", "ları", "le", "ler", "leri", "lı", "lık", "li", "lik", "lu", "luk", "lü", "lük", "mı", "mi", "mu", "mü", "na", "nca", "nce", "ncı", "nci", "ncu", "ncü", "nda", "ndan", "nde", "nden", "ne", "nı", "nın", "ni", "nin", "nun", "sal", "sel", "sın", "sınız", "sız", "sin", "siniz", "siz", "sun", "sunuz", "suz", "sün", "sünüz", "süz", "ta", "tan", "taş", "te", "ten", "teş", "tı", "tır", "ti", "tir", "tu", "tur", "tü", "tür", "um", "un", "ur", "uz", "üm", "ün", "ür", "üz", "ya", "ye", "yız", "yiz", "yla", "yle", "yor", "yuz", "yüz"]
+    tr_tense = ["ar", "ay", "ca", "cak", "ce", "cek", "dı", "dık", "dım", "dıy", "di", "dik", "dim", "diy", "du", "duk", "dum", "duy", "dü", "dük", "düm", "düy", "er", "ey", "ğım", "ğız", "ğim", "ğiz", "ım", "ır", "ıyor", "ız", "im", "ir", "iyor", "iz", "lı", "li", "ma", "me", "mış", "miş", "muş", "müş", "nız", "niz", "nuz", "nüz", "sa", "san", "say", "se", "sen", "sey", "sı", "sın", "si", "sin", "su", "sun", "sü", "sün", "tı", "tık", "tım", "ti", "tik", "tim", "tu", "tuk", "tum", "tü", "tük", "tüm", "um", "ur", "uyor", "uz", "üm", "ür", "üyor", "üz", "yor"]
+    tr_conj = ["an", "bi", "bu", "ca", "cak", "ça", "çık", "çün", "da", "de", "dem", "fa", "ge", "ha", "hâl", "hat", "he", "hem", "hi", "hut", "i", "is", "kâh", "kat", "kı", "ki", "kim", "kin", "kü", "lâ", "le", "ley", "lik", "ma", "mek", "na", "ne", "ni", "nız", "oy", "öy", "ra", "rek", "sa", "se", "sı", "sıl", "ta", "te", "ter", "üs", "var", "ve", "ya", "yal", "ye", "yi", "yok", "zi", "zık"]
+    tr_roots = [
+        "ve", "bir", "bu", "ol", "o", "et", "için", "bil", "ile", "gibi", "gel", "bulun", "de", "sonra", "kadar",
+        "kendi", "ver", "yap", "var", "daha", "büyük", "iç", "her", "al", "gün", "ne", "ben", "iki", "zaman", "ki",
+        "taraf", "yer", "en", "fakat", "bütün", "ara", "iş", "çok", "üzeri", "deyil", "gör", "biz", "hâl", "iste", "şey",
+        "yapıl", "el", "git", "kal", "göre", "memleket", "çık", "söyle", "geç", "yol", "veya", "göz", "insan", "şekil",
+        "karşı", "başla", "edil", "başka", "kız", "devlet", "yeni", "son", "şu", "göster", "baş", "hakkında", "diyer",
+        "yok", "şehir", "sen", "yalnız", "bul", "dōru", "kānun", "kadın", "sūret", "millet", "berāber", "gir", "çocuk",
+        "diye", "hayat", "saât", "bugün", "söz", "bāzı", "iyi", "böyle", "dünyā", "tārih", "sene", "bak", "kısım", "ilk",
+        "üzere", "yıl", "veril", "ev", "çalış", "eski", "su", "aynı", "parti", "genç", "üç", "ses", "adam", "mesele",
+        "alt", "şimdi", "biri", "pek", "yan", "madde", "harp", "hiç", "siz", "ön", "bey", "karar", "hükümet", "hâlk",
+        "görül", "olma", "bile", "bırak", "güzel", "hareket", "orta", "birçok", "ancak", "hava", "küçük", "fazla",
+        "eser", "kabūl", "nasıl", "kim", "netīce", "devam", "birlik", "evvel", "kuvvet", "sıra", "ikinci", "ad", "fikir",
+        "derece", "alın", "anla", "burada", "dil", "köy", "üst", "dur", "meydan", "getir", "arkadaş", "biraz", "yaz",
+        "düşün", "yine", "olun", "artık", "ay", "para", "sebep", "bana", "durum", "yaşa", "hak", "işte", "idāre", "yüz",
+        "yazı", "aç", "ora", "düş", "tut", "kaç", "gece", "defā", "deniz", "anlat", "toprak", "çünkü", "cevap", "haber",
+        "yüksek", "vazīfe", "on", "çek", "kapı", "çıkar", "sor", "dün", "yāni", "yakın", "ait", "ileri", "hâttā", "paşa",
+        "şart", "gazete", "memur", "baba", "otur", "dön", "müddet", "ayrıl", "sev", "beri", "beş", "lāzım", "uzun", "az",
+        "kitap", "birinci", "oda", "oku", "bölge", "ihtiyaç", "bura", "bakan", "sāhip", "renk", "miktar", "konuş", "ruh",
+        "öyle", "bakanlık", "öl", "tam", "hādise", "nihāyet", "vaziyet", "dört", "hüküm", "ya", "mejlis", "teşkil",
+        "ordu", "bilhassa", "toplantı", "koy", "merkez", "husus", "önce", "anlaşıl", "yardım", "hemen", "bin", "gerek",
+        "imkan", "tēsir", "bekle", "okul", "geniş", "doktor", "esas", "millī", "bildir", "devir", "nokta", "seçim",
+        "duy", "heyet", "etrāf", "kelime", "at", "komisyon", "usûl", "cemiyet", "çalışma", "açıl", "mal", "sāha",
+        "şöyle", "arka", "gemi", "hepsi", "vücut", "yukarı", "āile", "ticāret", "mevcut", "yaş", "isim", "sür", "herkes",
+        "geçir", "toplan", "belki", "oul", "resim", "kurul", "ayak", "bilgi", "erkek", "aşağı", "sabah", "muhtelif",
+        "düşünce", "akşam", "elde", "mühim", "takdir", "hep", "teşkīlāt", "geri", "tekrar", "kazan", "māna", "ölüm",
+        "kongre", "doğ", "efendi", "öğren", "kullan", "akıl", "ye", "birer", "eyer", "türlü", "sanat", "hastalık",
+        "görün", "ama", "tēmin", "içeri", "meselā", "kalk", "hayvan", "bahset", "batı", "il", "nere", "anne", "binā",
+        "parça", "tek", "henüz", "dāima", "beyaz", "gene", "mevzū", "müessese", "dış", "tanı", "koru", "uzak", "bit",
+        "faāliyet", "fabrika", "açık", "hem", "sokak", "vakit", "yāhut", "dağ", "dāva", "dayan", "tabii", "bakımından",
+        "kol", "mektup", "oyna", "yürü", "rağmen", "hakīkat", "konu", "yabancı", "mahkeme", "kısa", "nispet", "taşı",
+        "dinle", "kur", "ana", "düşman", "hürriyet", "lüzum", "hukuk", "belediye", "dāire", "sayı", "başkan", "halbuki",
+        "takım", "umūmi", "dolayı", "ziyāde", "sana", "dakīka", "derhâl", "oyun", "kuvvetli", "māhiyet", "dāir", "götür",
+        "gönder", "sınıf", "asıl", "sanāyi", "uğra", "yurt", "tākip", "din", "kâlp", "grup", "bugünkü", "sadece", "can",
+        "hazırlan", "polis", "profesör", "karı", "ağaç", "fiyat", "genel", "husūsi", "emīr", "in", "kaybet", "kimse",
+        "tedbir", "fark", "īcap", "topla", "milyon", "taş", "işçi", "milletvekīli", "den", "maksat", "devre", "hangi",
+        "kişi", "evet", "ilçe", "rol", "teklif", "sistem", "yerine", "ağız", "tarz", "asır", "hizmet", "lāzım",
+        "jandarma", "hanım", "arzu", "hafta", "mektep", "çeşit", "varlık", "dolaş", "dolayısıyla", "tespit", "üçüncü",
+        "siyāsi", "vatandaş", "bağlı", "inān", "unut", "liman", "alma", "anlaşma", "bulunma", "denil", "iktisādi",
+        "asker", "yazıl", "konferans", "birtakım", "eşyā", "gül", "yüzünden", "dikkât", "dost", "kardeş", "vergi",
+        "kaynak", "derin"
+    ]
     
-    if style: count += 23
-    if emotion: count += 37
-    if tr_spec: count += 11
-    if tr_alone: count += 5
-    if tr_long: count += 10
-    if tr_accent: count += 12
-    if tr_seng: count += 3
-    if tr_turk: count += 30
-    if tr_punc: count += 18
-    if tr_suffix: count += 132
+    def add(arr):
+        for t in arr:
+            if t not in user_symbols: user_symbols.append(t)
+            
+    if tr_latin_chk: add(tr_latin)
+    if tr_seng_chk: add(tr_seng)
+    if tr_spec_chk: add(tr_spec)
+    if tr_alone_chk: add(tr_alone)
+    if tr_long_chk: add(tr_long)
+    if tr_accent_chk: add(tr_accent)
+    if tr_turk_chk: add(tr_turk)
+    if tr_punc_chk: add(tr_punc)
+    if tr_suffix_chk: add(tr_suffix)
+    if tr_tense_chk: add(tr_tense)
+    if tr_conj_chk: add(tr_conj)
+    if tr_root_chk: add(tr_roots)
     
     if custom_str:
         custom_tokens = [x.strip() for x in custom_str.split("|") if x.strip()]
-        count += len(custom_tokens)
+        add(custom_tokens)
         
+    count = len(user_symbols)
     if inj_syl: count += int(syl_c)
     if inj_wrd: count += int(wrd_c)
     
@@ -1585,7 +1747,7 @@ def create_demo():
                     minimum=1000,
                     maximum=30000,
                     value=12000,
-                    step=500,
+                    step=100,
                     label=_("TOKENIZER_SLIDER_VOCAB")
                 )
                 
@@ -1622,12 +1784,13 @@ def create_demo():
                 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_TR_SPECIAL"))
+                tr_latin_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_LATIN"), value=False)
+                tr_seng_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SENG"), value=False)
                 tr_spec_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_SPEC"), value=False)
                 tr_alone_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_ALONE"), value=False)
-                tr_seng_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SENG"), value=False)
-                tr_turk_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TURK"), value=False)
                 tr_long_chk = gr.Checkbox(label=_("TOKENIZER_CHK_LONG"), value=False)
                 tr_accent_chk = gr.Checkbox(label=_("TOKENIZER_CHK_ACCENT"), value=False)
+                tr_turk_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TURK"), value=False)
                 tr_punc_chk = gr.Checkbox(label=_("TOKENIZER_CHK_PUNC"), value=False)
                 
             with gr.Group():
@@ -1641,6 +1804,8 @@ def create_demo():
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_SUFFIX"))
                 tr_suffix_chk = gr.Checkbox(label=_("TOKENIZER_CHK_SUFFIX"), value=False)
+                tr_tense_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_TENSE"), value=False)
+                tr_conj_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_CONJ"), value=False)
                 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_SYL"))
@@ -1649,6 +1814,7 @@ def create_demo():
                 
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_WRD"))
+                tr_root_chk = gr.Checkbox(label=_("TOKENIZER_CHK_TR_ROOTS"), value=False)
                 tok_inject_wrd = gr.Checkbox(label=_("TOKENIZER_CHK_INJECT_WRD"), value=False)
                 tok_wrd_count = gr.Number(label=_("TOKENIZER_LABEL_WRD_COUNT"), value=1000, precision=0)
             
@@ -1687,7 +1853,7 @@ def create_demo():
                     info=_("TOKENIZER_INFO_ADV_BYTE_FALLBACK")
                 )                
                 
-            init_add, init_eng, init_tot, init_res = update_token_stats(12000, "tr", False, False, False, False, False, False, False, False, False, False, False, "", False, 1000, False, 1000)
+            init_add, init_eng, init_tot, init_res = update_token_stats(12000, "tr", False, False, False, False, False, False, False, False, False, False, False, False, False, False, "", False, 1000, False, False, 1000)
             with gr.Group():
                 gr.Markdown(_("TOKENIZER_HEADER_STATS"))
                 with gr.Row():
@@ -1729,14 +1895,17 @@ def create_demo():
             lang_markers_chk,
             style_chk,             
             emotion_chk,           
+            tr_latin_chk,
+            tr_seng_chk,
             tr_spec_chk,
             tr_alone_chk,
-            tr_seng_chk,
-            tr_turk_chk,
             tr_long_chk,
             tr_accent_chk,
+            tr_turk_chk,
             tr_punc_chk,
             tr_suffix_chk,
+            tr_tense_chk,
+            tr_conj_chk,
             use_only_corpus_chk,
             norm_rule_dd,
             case_rule_dd,
@@ -1751,6 +1920,7 @@ def create_demo():
             tok_byte_fallback,
             tok_inject_syl,
             tok_syl_count,
+            tr_root_chk,
             tok_inject_wrd,
             tok_wrd_count
         ]
@@ -1778,9 +1948,9 @@ def create_demo():
         
         stat_inputs = [
             vocab_slider, lang_dd, lang_markers_chk,
-            style_chk, emotion_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, tr_accent_chk, 
-            tr_seng_chk, tr_turk_chk, tr_punc_chk, tr_suffix_chk, special_input,
-            tok_inject_syl, tok_syl_count, tok_inject_wrd, tok_wrd_count
+            style_chk, emotion_chk, tr_latin_chk, tr_seng_chk, tr_spec_chk, tr_alone_chk, tr_long_chk, tr_accent_chk, 
+            tr_turk_chk, tr_punc_chk, tr_suffix_chk, tr_tense_chk, tr_conj_chk, special_input,
+            tok_inject_syl, tok_syl_count, tr_root_chk, tok_inject_wrd, tok_wrd_count
         ]
         for component in stat_inputs:
             component.change(
@@ -2105,7 +2275,7 @@ def create_demo():
                     minimum=2000,
                     maximum=30000,
                     value=12000,
-                    step=1000,
+                    step=100,
                     label=_("TOKENIZER_SLIDER_VOCAB")
                 )
                     
