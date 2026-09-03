@@ -606,5 +606,9 @@
     "FINETUNE_PLACEHOLDER_UNWRAP": "Sonuç burada görünecek...",
     "FINETUNE": "İNCE AYAR",
     "TRAINER_LABEL_VOCAB_TYPE": "Sözlük Tipi",
-    "FINETUNE_LABEL_VOCAB_TYPE": "Sözlük Tipi"
+    "FINETUNE_LABEL_VOCAB_TYPE": "Sözlük Tipi",
+    "TOKENIZER_CHK_TR_LATIN": "Latin karakterleri dahil et",
+    "TOKENIZER_CHK_TR_TENSE": "Zaman Eklerini Dahil Et",
+    "TOKENIZER_CHK_TR_CONJ": "Bağlaçları Dahil Et",
+    "TOKENIZER_CHK_TR_ROOTS": "Sık Kullanılan Kökleri Dahil Et (TR)"
 }

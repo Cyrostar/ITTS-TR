@@ -607,5 +607,9 @@
     "FINETUNE_PLACEHOLDER_UNWRAP": "Result will appear here...",
     "FINETUNE": "FINETUNE",
     "TRAINER_LABEL_VOCAB_TYPE": "Vocabulary Type",
-    "FINETUNE_LABEL_VOCAB_TYPE": "Vocabulary Type"
+    "FINETUNE_LABEL_VOCAB_TYPE": "Vocabulary Type",
+    "TOKENIZER_CHK_TR_LATIN": "Include Latin characters",
+    "TOKENIZER_CHK_TR_TENSE": "Include Tenses",
+    "TOKENIZER_CHK_TR_CONJ": "Include Conjunctions",
+    "TOKENIZER_CHK_TR_ROOTS": "Include High-Frequency Roots (TR)"
 }
